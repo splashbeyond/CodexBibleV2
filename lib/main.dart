@@ -86,6 +86,8 @@ class _BibleReaderScreenState extends State<BibleReaderScreen> {
   bool isProcessing = false;
   List<String> audioQueue = [];
   List<String> verseQueue = [];
+  double _playbackSpeed = 1.0;
+  List<Map<String, dynamic>>? currentVerseData;
 
   @override
   void initState() {
@@ -184,6 +186,18 @@ class _BibleReaderScreenState extends State<BibleReaderScreen> {
     }
   }
 
+  // Add this method to extract verse number from text
+  int _extractVerseNumber(String verseText, int index) {
+    // First try to find a verse number at the start of the text
+    final numberMatch = RegExp(r'^\d+').firstMatch(verseText);
+    if (numberMatch != null) {
+      return int.parse(numberMatch.group(0)!);
+    }
+    // If no number found in text, use the index + 1 as fallback
+    return index + 1;
+  }
+
+  // Update the verse parsing method to preserve verse numbers
   List<String> _parseVerses(String content) {
     // First, remove all HTML tags and clean up the content
     String cleanContent = content
@@ -197,21 +211,7 @@ class _BibleReaderScreenState extends State<BibleReaderScreen> {
 
     // Split into verses using a more robust pattern that preserves quotes
     List<String> verses = cleanContent.split(RegExp(r'(?<=\.) (?=\d+|[A-Z])'));
-    return verses.map((verse) {
-      // Remove verse numbers while preserving quotes and text
-      String cleaned = verse
-          .replaceAll(RegExp(r'^\d+\s*'), '') // Remove numbers at the start
-          .replaceAll(RegExp(r'^\s*\d+\s*[:.]\s*'), '') // Remove numbers followed by : or .
-          .replaceAll(RegExp(r'^\s*[:.]\s*'), '') // Remove any leftover : or . at the start
-          .trim();
-
-      // If the verse still starts with a number (but not a quote), remove it
-      if (RegExp(r'^\d').hasMatch(cleaned) && !cleaned.startsWith('"')) {
-        cleaned = cleaned.replaceFirst(RegExp(r'^\d+\s*'), '').trim();
-      }
-
-      return cleaned;
-    }).where((verse) => verse.isNotEmpty).toList();
+    return verses.where((verse) => verse.isNotEmpty).toList();
   }
 
   Future<void> _loadPassage() async {
@@ -222,11 +222,12 @@ class _BibleReaderScreenState extends State<BibleReaderScreen> {
         isLoading = true;
       });
 
-      final content = await _bibleService.getChapter(selectedBook!, selectedChapter!);
-      if (content.isNotEmpty) {
-        final verses = _parseVerses(content);
+      final response = await _bibleService.getChapter(selectedBook!, selectedChapter!);
+      if (response['content'].isNotEmpty) {
+        final verses = _parseVerses(response['content']);
         setState(() {
           currentVerses = verses;
+          currentVerseData = response['verses'];
           isLoading = false;
         });
       }
@@ -235,7 +236,104 @@ class _BibleReaderScreenState extends State<BibleReaderScreen> {
       setState(() {
         isLoading = false;
         currentVerses = [];
+        currentVerseData = [];
       });
+    }
+  }
+
+  Future<void> _playCurrentVerse() async {
+    if (!mounted || !isContinuousPlaying || currentVerses == null || currentVerses!.isEmpty) {
+      setState(() {
+        isPlaying = false;
+        isContinuousPlaying = false;
+      });
+      return;
+    }
+
+    if (currentVerseIndex >= currentVerses!.length) {
+      setState(() {
+        isPlaying = false;
+        isContinuousPlaying = false;
+        currentVerseIndex = 0;
+      });
+      return;
+    }
+
+    try {
+      await _audioPlayer.stop();
+
+      // Clean up previous audio file
+      if (currentAudioPath != null) {
+        try {
+          final file = File(currentAudioPath!);
+          if (await file.exists()) {
+            await file.delete();
+          }
+        } catch (e) {
+          print('Error cleaning up previous audio file: $e');
+        }
+        currentAudioPath = null;
+      }
+
+      String audioPath;
+      final currentIndex = currentVerseIndex;
+
+      // Check if we have a preloaded audio file for this verse
+      if (nextAudioPath != null && currentIndex > 0) {
+        audioPath = nextAudioPath!;
+        nextAudioPath = null;
+      } else {
+        // Generate audio for current verse
+        final verse = currentVerses![currentIndex];
+        print('Processing verse ${currentIndex + 1}: $verse');
+        audioPath = await _voiceService.generateChapterAudio(
+          [verse],
+          selectedVoice!.id,
+        );
+      }
+
+      if (!mounted || !isContinuousPlaying || currentIndex != currentVerseIndex) {
+        try {
+          await File(audioPath).delete();
+        } catch (e) {
+          print('Error cleaning up cancelled audio file: $e');
+        }
+        return;
+      }
+
+      currentAudioPath = audioPath;
+      print('Playing verse ${currentIndex + 1}');
+
+      // Start preloading next verse while current verse is playing
+      if (currentIndex + 1 < currentVerses!.length) {
+        _preloadNextVerse();
+      }
+
+      // Set playback speed and play current verse
+      await _audioPlayer.setPlaybackRate(_playbackSpeed);
+      await _audioPlayer.play(DeviceFileSource(audioPath));
+
+      // Wait for completion
+      await _audioPlayer.onPlayerComplete.first;
+
+      // Move to next verse if still playing
+      if (mounted && isContinuousPlaying && currentIndex == currentVerseIndex) {
+        setState(() {
+          currentVerseIndex++;
+        });
+        // Reduced delay between verses since we're preloading
+        await Future.delayed(const Duration(milliseconds: 100));
+        _playCurrentVerse();
+      }
+    } catch (e) {
+      print('Error playing verse ${currentVerseIndex + 1}: $e');
+      if (mounted) {
+        setState(() {
+          isPlaying = false;
+          isContinuousPlaying = false;
+        });
+        _showError('Failed to play verse ${currentVerseIndex + 1}');
+      }
     }
   }
 
@@ -248,20 +346,28 @@ class _BibleReaderScreenState extends State<BibleReaderScreen> {
     try {
       isPreloading = true;
       final nextVerse = currentVerses![nextIndex];
-
-      // Add verse number for verification
       print('Preloading verse ${nextIndex + 1}: $nextVerse');
 
-      final fullText = nextVerse;
       final audioPath = await _voiceService.generateChapterAudio(
-        [fullText],
+        [nextVerse],
         selectedVoice!.id,
       );
-      nextAudioPath = audioPath;
-      isPreloading = false;
+
+      // Only store the preloaded path if we're still playing and haven't moved past this verse
+      if (mounted && isContinuousPlaying && nextIndex == currentVerseIndex + 1) {
+        nextAudioPath = audioPath;
+      } else {
+        // Clean up the audio file if it's no longer needed
+        try {
+          await File(audioPath).delete();
+        } catch (e) {
+          print('Error cleaning up unused preloaded file: $e');
+        }
+      }
     } catch (e) {
       print('Error preloading next verse: $e');
       nextAudioPath = null;
+    } finally {
       isPreloading = false;
     }
   }
@@ -292,93 +398,6 @@ class _BibleReaderScreenState extends State<BibleReaderScreen> {
 
     // Start playing verses
     _playCurrentVerse();
-  }
-
-  Future<void> _playCurrentVerse() async {
-    if (!mounted || !isContinuousPlaying || currentVerses == null || currentVerses!.isEmpty) {
-      setState(() {
-        isPlaying = false;
-        isContinuousPlaying = false;
-      });
-      return;
-    }
-
-    // Check if we've reached the end
-    if (currentVerseIndex >= currentVerses!.length) {
-      setState(() {
-        isPlaying = false;
-        isContinuousPlaying = false;
-        currentVerseIndex = 0;
-      });
-      return;
-    }
-
-    try {
-      // Stop any current playback and wait for it to complete
-      await _audioPlayer.stop();
-
-      // Clean up previous audio file if it exists
-      if (currentAudioPath != null) {
-        try {
-          final file = File(currentAudioPath!);
-          if (await file.exists()) {
-            await file.delete();
-          }
-        } catch (e) {
-          print('Error cleaning up previous audio file: $e');
-        }
-        currentAudioPath = null;
-      }
-
-      // Get current verse
-      final verse = currentVerses![currentVerseIndex];
-      final currentIndex = currentVerseIndex; // Store current index for verification
-      print('Processing verse ${currentIndex + 1}: $verse');
-
-      // Generate audio for current verse
-      final audioPath = await _voiceService.generateChapterAudio(
-        [verse],
-        selectedVoice!.id,
-      );
-
-      // Verify we're still playing and on the same verse
-      if (!mounted || !isContinuousPlaying || currentIndex != currentVerseIndex) {
-        // Clean up if state has changed
-        try {
-          await File(audioPath).delete();
-        } catch (e) {
-          print('Error cleaning up cancelled audio file: $e');
-        }
-        return;
-      }
-
-      // Store current audio path
-      currentAudioPath = audioPath;
-      print('Playing verse ${currentIndex + 1}');
-
-      // Play the verse and wait for completion
-      await _audioPlayer.play(DeviceFileSource(audioPath));
-      await _audioPlayer.onPlayerComplete.first;
-
-      // Move to next verse if we're still playing
-      if (mounted && isContinuousPlaying && currentIndex == currentVerseIndex) {
-        setState(() {
-          currentVerseIndex++;
-        });
-        // Small delay between verses
-        await Future.delayed(const Duration(milliseconds: 300));
-        _playCurrentVerse();
-      }
-    } catch (e) {
-      print('Error playing verse ${currentVerseIndex + 1}: $e');
-      if (mounted) {
-        setState(() {
-          isPlaying = false;
-          isContinuousPlaying = false;
-        });
-        _showError('Failed to play verse ${currentVerseIndex + 1}');
-      }
-    }
   }
 
   void _showError(String message) {
@@ -580,8 +599,97 @@ class _BibleReaderScreenState extends State<BibleReaderScreen> {
                 },
               ),
             ),
+          // Add playback speed control
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16.0),
+            child: Row(
+              children: [
+                const Text('Playback Speed: '),
+                Expanded(
+                  child: Slider(
+                    value: _playbackSpeed,
+                    min: 0.5,
+                    max: 2.0,
+                    divisions: 6,
+                    label: '${_playbackSpeed}x',
+                    onChanged: (value) {
+                      _changePlaybackSpeed(value);
+                    },
+                  ),
+                ),
+                Text('${_playbackSpeed}x'),
+              ],
+            ),
+          ),
           const SizedBox(height: 16),
         ],
+      ),
+    );
+  }
+
+  // Update the verse reference popup method
+  void _showVerseReference(String verseText, int index) {
+    if (currentVerseData != null && index < currentVerseData!.length) {
+      final verseData = currentVerseData![index];
+      final reference = verseData['reference'] ?? '$selectedBook ${selectedChapter}:${index + 1}';
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(reference),
+          duration: const Duration(seconds: 1),
+          behavior: SnackBarBehavior.floating,
+          margin: const EdgeInsets.all(8),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(8),
+          ),
+          backgroundColor: Theme.of(context).primaryColor,
+        ),
+      );
+    }
+  }
+
+  // Update the verse list builder
+  Widget _buildVerseList() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: List.generate(
+        currentVerses!.length,
+        (index) {
+          final isCurrentVerse = index == currentVerseIndex && isPlaying;
+          final isDarkMode = Theme.of(context).brightness == Brightness.dark;
+          final verseText = currentVerses![index];
+
+          return GestureDetector(
+            onTap: () => _showVerseReference(verseText, index),
+            child: Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 4.0),
+              decoration: BoxDecoration(
+                color: isCurrentVerse
+                    ? (isDarkMode
+                        ? Colors.blue.withOpacity(0.15)
+                        : Theme.of(context).primaryColor.withOpacity(0.1))
+                    : null,
+                border: Border(
+                  bottom: BorderSide(
+                    color: Theme.of(context).dividerColor.withOpacity(0.1),
+                  ),
+                ),
+              ),
+              child: Text(
+                verseText,
+                style: TextStyle(
+                  fontSize: 18,
+                  height: 1.6,
+                  letterSpacing: 0.3,
+                  color: isCurrentVerse
+                      ? (isDarkMode ? Colors.blue[300] : Theme.of(context).primaryColor)
+                      : null,
+                ),
+              ),
+            ),
+          );
+        },
       ),
     );
   }
@@ -644,66 +752,28 @@ class _BibleReaderScreenState extends State<BibleReaderScreen> {
               const Center(child: CircularProgressIndicator())
             else
               SingleChildScrollView(
-                padding: const EdgeInsets.all(16.0),
+                padding: const EdgeInsets.symmetric(vertical: 16.0),
                 child: currentVerses != null && currentVerses!.isNotEmpty
-                    ? Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-            Text(
-                            '$selectedBook ${selectedChapter ?? ""}',
-                            style: const TextStyle(
-                              fontSize: 24,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          const SizedBox(height: 24),
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: List.generate(
-                              currentVerses!.length,
-                              (index) => Container(
-                                width: double.infinity,
-                                padding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 4.0),
-                                decoration: BoxDecoration(
-                                  border: Border(
-                                    bottom: BorderSide(
-                                      color: Theme.of(context).dividerColor.withOpacity(0.1),
-                                    ),
-                                  ),
-                                ),
-                                child: Row(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    SizedBox(
-                                      width: 30,
-                                      child: Text(
-                                        '${index + 1}',
-                                        style: TextStyle(
-                                          fontSize: 14,
-                                          color: Theme.of(context).textTheme.bodySmall?.color,
-                                        ),
-                                      ),
-                                    ),
-                                    Expanded(
-                                      child: Text(
-                                        currentVerses![index],
-                                        style: const TextStyle(
-                                          fontSize: 18,
-                                          height: 1.6,
-                                          letterSpacing: 0.3,
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ),
+                    ? Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 48.0), // Add padding for the side buttons
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              '$selectedBook ${selectedChapter ?? ""}',
+                              style: const TextStyle(
+                                fontSize: 24,
+                                fontWeight: FontWeight.bold,
                               ),
                             ),
-                          ),
-                          // Add extra padding at the bottom to ensure last verse is visible
-                          SizedBox(
-                            height: MediaQuery.of(context).padding.bottom + 120, // Account for bottom safe area and FAB
-                          ),
-                        ],
+                            const SizedBox(height: 24),
+                            _buildVerseList(),
+                            // Add extra padding at the bottom to ensure last verse is visible
+                            SizedBox(
+                              height: MediaQuery.of(context).padding.bottom + 120,
+                            ),
+                          ],
+                        ),
                       )
                     : const Center(
                         child: Text('Select a book and chapter to begin'),
@@ -717,12 +787,20 @@ class _BibleReaderScreenState extends State<BibleReaderScreen> {
                 bottom: 0,
                 child: Center(
                   child: Container(
+                    width: 40,
                     decoration: BoxDecoration(
-                      color: Theme.of(context).scaffoldBackgroundColor.withOpacity(0.7),
+                      color: Theme.of(context).scaffoldBackgroundColor,
                       borderRadius: const BorderRadius.only(
                         topRight: Radius.circular(12),
                         bottomRight: Radius.circular(12),
                       ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.1),
+                          blurRadius: 4,
+                          offset: const Offset(2, 0),
+                        ),
+                      ],
                     ),
                     child: IconButton(
                       icon: const Icon(Icons.arrow_back_ios),
@@ -739,12 +817,20 @@ class _BibleReaderScreenState extends State<BibleReaderScreen> {
                 bottom: 0,
                 child: Center(
                   child: Container(
+                    width: 40,
                     decoration: BoxDecoration(
-                      color: Theme.of(context).scaffoldBackgroundColor.withOpacity(0.7),
+                      color: Theme.of(context).scaffoldBackgroundColor,
                       borderRadius: const BorderRadius.only(
                         topLeft: Radius.circular(12),
                         bottomLeft: Radius.circular(12),
                       ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.1),
+                          blurRadius: 4,
+                          offset: const Offset(-2, 0),
+                        ),
+                      ],
                     ),
                     child: IconButton(
                       icon: const Icon(Icons.arrow_forward_ios),
@@ -761,5 +847,11 @@ class _BibleReaderScreenState extends State<BibleReaderScreen> {
       floatingActionButtonLocation: FloatingActionButtonLocation.startFloat,
       floatingActionButton: null,
     );
+  }
+
+  void _changePlaybackSpeed(double value) {
+    setState(() {
+      _playbackSpeed = value;
+    });
   }
 }

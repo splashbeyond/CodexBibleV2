@@ -88,6 +88,9 @@ class _BibleReaderScreenState extends State<BibleReaderScreen> {
   List<String> verseQueue = [];
   double _playbackSpeed = 1.0;
   List<Map<String, dynamic>>? currentVerseData;
+  Map<String, List<String>> _verseCache = {};
+  bool _isPreloadingNextChapter = false;
+  bool _isPreloadingPrevChapter = false;
 
   @override
   void initState() {
@@ -105,7 +108,20 @@ class _BibleReaderScreenState extends State<BibleReaderScreen> {
     _voiceService = VoiceService();
     print('Initializing with ElevenLabs API key: ${elevenlabsKey.substring(0, 10)}...');
 
-    await _loadVoices();
+    await _loadVoices().then((loadedVoices) {
+      if (loadedVoices != null && loadedVoices.isNotEmpty) {
+        // Find Callum's voice
+        final callumVoice = loadedVoices.firstWhere(
+          (voice) => voice.name.toLowerCase() == 'callum',
+          orElse: () => loadedVoices.first,
+        );
+        setState(() {
+          voices = loadedVoices;
+          selectedVoice = callumVoice;
+        });
+      }
+    });
+
     await _loadBibles().then((_) {
       _loadPassage();
     });
@@ -141,20 +157,17 @@ class _BibleReaderScreenState extends State<BibleReaderScreen> {
         print('Error cleaning up audio file during dispose: $e');
       }
     }
+    _verseCache.clear();
     super.dispose();
   }
 
-  Future<void> _loadVoices() async {
+  Future<List<Voice>?> _loadVoices() async {
     try {
       final loadedVoices = await _voiceService.getVoices();
-      setState(() {
-        voices = loadedVoices;
-        if (loadedVoices.isNotEmpty) {
-          selectedVoice = loadedVoices.first;
-        }
-      });
+      return loadedVoices;
     } catch (e) {
       _showError('Failed to load voices');
+      return null;
     }
   }
 
@@ -166,12 +179,12 @@ class _BibleReaderScreenState extends State<BibleReaderScreen> {
       setState(() {
         availableBibles = bibles;
         if (bibles.isNotEmpty) {
-          // Look for KJV Bible
+          // Always select KJV Bible
           final kjvBible = bibles.firstWhere(
             (bible) =>
               bible['abbreviation']?.toString().toUpperCase() == 'KJV' ||
               bible['name'].toString().contains('King James') ||
-              bible['id'] == 'de4e12af7f28f599-02', // KJV Bible ID
+              bible['id'] == 'de4e12af7f28f599-02',
             orElse: () => bibles.first,
           );
 
@@ -214,29 +227,83 @@ class _BibleReaderScreenState extends State<BibleReaderScreen> {
     return verses.where((verse) => verse.isNotEmpty).toList();
   }
 
+  String _getCacheKey(String book, int chapter) {
+    return '$book:$chapter';
+  }
+
+  Future<void> _preloadChapter(String book, int chapter) async {
+    final cacheKey = _getCacheKey(book, chapter);
+    if (_verseCache.containsKey(cacheKey)) return;
+
+    try {
+      final response = await _bibleService.getChapter(book, chapter);
+      if (response['verses'].isNotEmpty) {
+        final verses = List<Map<String, dynamic>>.from(response['verses']);
+        final List<String> verseTexts = verses.map((verse) => verse['text'].toString().trim()).toList();
+        _verseCache[cacheKey] = verseTexts;
+      }
+    } catch (e) {
+      print('Error preloading chapter: $e');
+    }
+  }
+
+  Future<void> _preloadAdjacentChapters() async {
+    if (selectedBook == null || selectedChapter == null) return;
+
+    // Preload next chapter
+    final maxChapters = BibleData.books[selectedBook] ?? 1;
+    if (selectedChapter! < maxChapters && !_isPreloadingNextChapter) {
+      _isPreloadingNextChapter = true;
+      await _preloadChapter(selectedBook!, selectedChapter! + 1);
+      _isPreloadingNextChapter = false;
+    }
+
+    // Preload previous chapter
+    if (selectedChapter! > 1 && !_isPreloadingPrevChapter) {
+      _isPreloadingPrevChapter = true;
+      await _preloadChapter(selectedBook!, selectedChapter! - 1);
+      _isPreloadingPrevChapter = false;
+    }
+  }
+
   Future<void> _loadPassage() async {
     try {
       if (selectedBook == null || selectedChapter == null) return;
 
       setState(() {
         isLoading = true;
-        currentVerses = null;
       });
+
+      // Check cache first
+      final cacheKey = _getCacheKey(selectedBook!, selectedChapter!);
+      if (_verseCache.containsKey(cacheKey)) {
+        setState(() {
+          currentVerses = _verseCache[cacheKey];
+          isLoading = false;
+        });
+        // Preload adjacent chapters after loading from cache
+        _preloadAdjacentChapters();
+        return;
+      }
 
       final response = await _bibleService.getChapter(selectedBook!, selectedChapter!);
       if (response['verses'].isNotEmpty) {
         final verses = List<Map<String, dynamic>>.from(response['verses']);
         final List<String> verseTexts = verses.map((verse) => verse['text'].toString().trim()).toList();
 
+        // Cache the verses
+        _verseCache[cacheKey] = verseTexts;
+
         setState(() {
           currentVerses = verseTexts;
-          currentVerseData = verses;
           isLoading = false;
         });
+
+        // Preload adjacent chapters after loading current chapter
+        _preloadAdjacentChapters();
       } else {
         setState(() {
           currentVerses = [];
-          currentVerseData = [];
           isLoading = false;
         });
       }
@@ -245,7 +312,6 @@ class _BibleReaderScreenState extends State<BibleReaderScreen> {
       setState(() {
         isLoading = false;
         currentVerses = [];
-        currentVerseData = [];
       });
     }
   }
@@ -260,11 +326,31 @@ class _BibleReaderScreenState extends State<BibleReaderScreen> {
     }
 
     if (currentVerseIndex >= currentVerses!.length) {
-      setState(() {
-        isPlaying = false;
-        isContinuousPlaying = false;
-        currentVerseIndex = 0;
-      });
+      // At the end of the chapter, turn the page
+      print('End of chapter reached, turning page...');
+
+      // Wait for 1 second before turning the page
+      await Future.delayed(const Duration(seconds: 1));
+
+      // Navigate to next chapter if we're still playing
+      if (mounted && isContinuousPlaying) {
+        await _navigateChapter(1);
+        // If navigation was successful and we have verses, start from beginning
+        if (currentVerses != null && currentVerses!.isNotEmpty) {
+          setState(() {
+            currentVerseIndex = 0;
+          });
+          await _playCurrentVerse();
+          return;
+        } else {
+          // If we couldn't load the next chapter, stop playing
+          setState(() {
+            isPlaying = false;
+            isContinuousPlaying = false;
+            currentVerseIndex = 0;
+          });
+        }
+      }
       return;
     }
 
@@ -621,18 +707,37 @@ class _BibleReaderScreenState extends State<BibleReaderScreen> {
                   hint: const Text('Select Bible Translation'),
                   isExpanded: true,
                   items: availableBibles!.map((bible) {
+                    final isKJV = bible['abbreviation']?.toString().toUpperCase() == 'KJV' ||
+                        bible['name'].toString().contains('King James') ||
+                        bible['id'] == 'de4e12af7f28f599-02';
                     return DropdownMenuItem<String>(
                       value: bible['id'],
-                      child: Text(bible['nameLocal'] ?? bible['name']),
+                      enabled: isKJV,
+                      child: Text(
+                        bible['nameLocal'] ?? bible['name'],
+                        style: !isKJV ? TextStyle(
+                          color: Theme.of(context).disabledColor,
+                          fontStyle: FontStyle.italic,
+                        ) : null,
+                      ),
                     );
                   }).toList(),
                   onChanged: (String? newValue) {
-                    setState(() {
-                      selectedBibleId = newValue;
-                      _bibleService.setBibleId(newValue!);
-                      currentVerses = null;
-                    });
-                    _loadPassage();
+                    final selectedBible = availableBibles!.firstWhere(
+                      (bible) => bible['id'] == newValue,
+                      orElse: () => availableBibles!.first,
+                    );
+                    final isKJV = selectedBible['abbreviation']?.toString().toUpperCase() == 'KJV' ||
+                        selectedBible['name'].toString().contains('King James') ||
+                        selectedBible['id'] == 'de4e12af7f28f599-02';
+                    if (isKJV) {
+                      setState(() {
+                        selectedBibleId = newValue;
+                        _bibleService.setBibleId(newValue!);
+                        currentVerses = null;
+                      });
+                      _loadPassage();
+                    }
                   },
                 ),
               ),
@@ -769,10 +874,14 @@ class _BibleReaderScreenState extends State<BibleReaderScreen> {
       final currentIndex = booksList.indexOf(selectedBook!);
       if (currentIndex > 0) {
         final previousBook = booksList[currentIndex - 1];
+        final lastChapter = BibleData.books[previousBook]!;
+
+        // Preload the target chapter before switching
+        await _preloadChapter(previousBook, lastChapter);
+
         setState(() {
           selectedBook = previousBook;
-          selectedChapter = BibleData.books[previousBook];
-          currentVerses = null;
+          selectedChapter = lastChapter;
         });
         await _loadPassage();
         if (isContinuousPlaying) {
@@ -786,10 +895,13 @@ class _BibleReaderScreenState extends State<BibleReaderScreen> {
       final currentIndex = booksList.indexOf(selectedBook!);
       if (currentIndex < booksList.length - 1) {
         final nextBook = booksList[currentIndex + 1];
+
+        // Preload the target chapter before switching
+        await _preloadChapter(nextBook, 1);
+
         setState(() {
           selectedBook = nextBook;
           selectedChapter = 1;
-          currentVerses = null;
         });
         await _loadPassage();
         if (isContinuousPlaying) {
@@ -803,9 +915,11 @@ class _BibleReaderScreenState extends State<BibleReaderScreen> {
         });
       }
     } else {
+      // Preload the target chapter before switching
+      await _preloadChapter(selectedBook!, newChapter);
+
       setState(() {
         selectedChapter = newChapter;
-        currentVerses = null;
       });
       await _loadPassage();
       if (isContinuousPlaying) {

@@ -26,7 +26,7 @@ class BibleService {
       final bookId = await _getBookId(book);
       if (bookId == null) {
         print('Book ID not found for: $book');
-        return {'content': '', 'verses': []};
+        return {'verses': []};
       }
 
       final chapterUrl = '$baseUrl/bibles/$_currentBibleId/chapters/$bookId.$chapter';
@@ -39,59 +39,48 @@ class BibleService {
 
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
-        String content = data['data']['content'] as String;
-        final chapterId = data['data']['id'] as String;
+        final content = data['data']['content'] as String;
 
-        // Get verses data using the chapter ID
-        final versesUrl = '$baseUrl/bibles/$_currentBibleId/chapters/$chapterId/verses';
-        print('Fetching verses from URL: $versesUrl');
-        final versesResponse = await http.get(
-          Uri.parse(versesUrl),
-          headers: _headers,
-        );
+        // Clean and split the content into verses
+        final cleanContent = _cleanHtml(content);
+        final verses = cleanContent
+            .split(RegExp(r'(?<=\.) (?=\w)'))
+            .where((verse) => verse.trim().isNotEmpty)
+            .map((verse) => {
+              'text': verse.trim()
+                  .replaceAll(RegExp(r'^\d+\s*'), '') // Remove leading numbers
+                  .replaceAll(RegExp(r'\s*\d+\s*(?=\w)'), ' ') // Remove numbers before words
+                  .trim()
+            })
+            .toList();
 
-        List<Map<String, dynamic>> verses = [];
-        if (versesResponse.statusCode == 200) {
-          final versesData = json.decode(versesResponse.body);
-          verses = List<Map<String, dynamic>>.from(versesData['data'].map((verse) {
-            return {
-              'id': verse['id'],
-              'reference': verse['reference'],
-              'text': verse['content']
-            };
-          }));
-          print('Fetched ${verses.length} verses with references');
-        } else {
-          print('Failed to fetch verses. Status code: ${versesResponse.statusCode}');
-          print('Response body: ${versesResponse.body}');
-        }
-
-        // Clean up HTML content
-        content = content
-            .replaceAll(RegExp(r'<p[^>]*>'), '')
-            .replaceAll('</p>', ' ')
-            .replaceAll(RegExp(r'<span[^>]*class="add"[^>]*>'), '')
-            .replaceAll(RegExp(r'<span[^>]*class="nd"[^>]*>'), '')
-            .replaceAll(RegExp(r'<span[^>]*class="v"[^>]*>\d+\s*'), '')
-            .replaceAll('</span>', '')
-            .replaceAll('¶', '')
-            .replaceAll(RegExp(r'\s*\d+\s*(?=\w)'), ' ')
-            .replaceAll(RegExp(r'\s+'), ' ')
-            .trim();
-
-        return {
-          'content': content,
-          'verses': verses,
-        };
+        print('Processed ${verses.length} verses');
+        return {'verses': verses};
       } else {
         print('Failed to fetch chapter. Status code: ${response.statusCode}');
         print('Response body: ${response.body}');
-        return {'content': '', 'verses': []};
+        return {'verses': []};
       }
     } catch (e) {
       print('Error in getChapter: $e');
-      return {'content': '', 'verses': []};
+      return {'verses': []};
     }
+  }
+
+  String _cleanHtml(String content) {
+    // Remove verse numbers and HTML tags
+    content = content
+        .replaceAll(RegExp(r'<sup[^>]*>\d+</sup>'), '') // Remove verse numbers in sup tags
+        .replaceAll(RegExp(r'<[^>]*>'), '') // Remove all HTML tags
+        .replaceAll('&quot;', '"')
+        .replaceAll('&apos;', "'")
+        .replaceAll('&amp;', '&')
+        .replaceAll('¶', '')
+        .replaceAll(RegExp(r'^\d+\s*'), '') // Remove verse numbers at start of text
+        .replaceAll(RegExp(r'\s*\d+\s*(?=\w)'), ' ') // Remove verse numbers before words
+        .replaceAll(RegExp(r'\s+'), ' ') // Replace multiple spaces with single space
+        .trim();
+    return content;
   }
 
   String _normalizeBookName(String name) {

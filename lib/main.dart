@@ -319,7 +319,7 @@ class _BibleReaderScreenState extends State<BibleReaderScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('ASV Bible'),
+        title: const Text('Codex Bible'),
         actions: [
           IconButton(
             icon: Icon(isDarkMode ? Icons.light_mode : Icons.dark_mode),

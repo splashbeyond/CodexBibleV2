@@ -110,10 +110,18 @@ class WEBBibleService {
           
           // Extract verse if it starts with a number and we're in the right chapter
           if (inChapter) {
-            RegExpMatch? match = RegExp(r'^(\d+)\s+(.+)$').firstMatch(trimmedLine);
+            // Updated regex to better handle verse numbers and clean the text
+            RegExpMatch? match = RegExp(r'^(\d+)\s*(.+)$').firstMatch(trimmedLine);
             if (match != null) {
               String verseText = match.group(2) ?? '';
               if (verseText.isNotEmpty) {
+                // Clean up the verse text by removing stray numbers and quotes
+                verseText = verseText
+                    .replaceAll(RegExp(r'\s+\d+\s*[""]\s*'), ' ') // Remove stray verse numbers with quotes
+                    .replaceAll(RegExp(r'\s+\d+\s+(?=\w)'), ' ') // Remove stray numbers before words
+                    .replaceAll(RegExp(r'\s+'), ' ') // Normalize spaces
+                    .trim();
+                
                 print('Adding verse ${match.group(1)}: ${verseText.substring(0, min(40, verseText.length))}...');
                 verses.add(verseText);
               }

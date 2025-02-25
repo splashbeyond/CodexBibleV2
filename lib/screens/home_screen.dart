@@ -213,11 +213,16 @@ class _HomeScreenState extends State<HomeScreen> {
               SliverAppBar(
                 floating: true,
                 snap: true,
-                backgroundColor: Theme.of(context).scaffoldBackgroundColor.withOpacity(0.9),
+                pinned: true,
+                backgroundColor: Theme.of(context).scaffoldBackgroundColor.withOpacity(0.95),
+                elevation: 4,
+                shadowColor: Colors.black26,
                 title: Text('$selectedBook ${selectedChapter ?? ""}'),
                 actions: [
                   PopupMenuButton<String>(
                     icon: const Icon(Icons.menu),
+                    tooltip: 'Select Book',
+                    position: PopupMenuPosition.under,
                     onSelected: (String book) async {
                       setState(() {
                         selectedBook = book;
@@ -225,6 +230,13 @@ class _HomeScreenState extends State<HomeScreen> {
                       });
                       await _loadPassage();
                       await _savePosition();
+                      
+                      // Scroll to top when changing books
+                      _scrollController.animateTo(
+                        0,
+                        duration: const Duration(milliseconds: 300),
+                        curve: Curves.easeOut,
+                      );
                     },
                     itemBuilder: (BuildContext context) {
                       return BibleData.books.keys.map((String book) {
@@ -237,12 +249,21 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                   PopupMenuButton<int>(
                     icon: Text('Ch. ${selectedChapter ?? ""}'),
+                    tooltip: 'Select Chapter',
+                    position: PopupMenuPosition.under,
                     onSelected: (int chapter) async {
                       setState(() {
                         selectedChapter = chapter;
                       });
                       await _loadPassage();
                       await _savePosition();
+                      
+                      // Scroll to top when changing chapters
+                      _scrollController.animateTo(
+                        0,
+                        duration: const Duration(milliseconds: 300),
+                        curve: Curves.easeOut,
+                      );
                     },
                     itemBuilder: (BuildContext context) {
                       if (selectedBook == null) return [];

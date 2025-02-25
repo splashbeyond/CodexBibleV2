@@ -81,6 +81,7 @@ flutter:
     - assets/CodexASVBible/WEBTEXT.pdf
     - assets/background_music/
     - assets/background_music/soft-rain-ambient-111154.mp3
+    - assets/images/
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/assets-and-images/#resolution-aware

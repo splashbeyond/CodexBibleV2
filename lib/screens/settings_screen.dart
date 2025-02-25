@@ -132,8 +132,133 @@ class _SettingsScreenState extends State<SettingsScreen> {
             leading: const Icon(Icons.gavel_outlined),
             title: const Text('Terms of Service'),
             onTap: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Coming soon!')),
+              showDialog(
+                context: context,
+                builder: (BuildContext context) {
+                  return Dialog(
+                    insetPadding: const EdgeInsets.all(16),
+                    child: Container(
+                      width: double.infinity,
+                      constraints: BoxConstraints(
+                        maxHeight: MediaQuery.of(context).size.height * 0.8,
+                      ),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          AppBar(
+                            title: const Text('Terms of Service'),
+                            leading: IconButton(
+                              icon: const Icon(Icons.close),
+                              onPressed: () => Navigator.of(context).pop(),
+                            ),
+                          ),
+                          Expanded(
+                            child: SingleChildScrollView(
+                              padding: const EdgeInsets.all(16),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: const [
+                                  Text(
+                                    'Legal Disclaimer and Terms of Service',
+                                    style: TextStyle(
+                                      fontSize: 20,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                  SizedBox(height: 16),
+                                  Text(
+                                    'Attribution and Usage Rights',
+                                    style: TextStyle(
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                  SizedBox(height: 8),
+                                  Text(
+                                    'This application ("App") incorporates the following third-party content, each used in accordance with their respective licenses:',
+                                  ),
+                                  SizedBox(height: 16),
+                                  Text(
+                                    'Biblical Content',
+                                    style: TextStyle(fontWeight: FontWeight.bold),
+                                  ),
+                                  Text(
+                                    '• World English Bible (WEB) text: The WEB is in the Public Domain. No copyright license is needed for its use, distribution, or adaptation. The WEB text may be freely used for any purpose without permission or attribution.',
+                                  ),
+                                  SizedBox(height: 16),
+                                  Text(
+                                    'Audio Content',
+                                    style: TextStyle(fontWeight: FontWeight.bold),
+                                  ),
+                                  Text(
+                                    '• World English Bible Recording - American Male Voice (Michael Johnson): This audio recording is utilized under its free commercial use license. The recording is in the Public Domain and may be freely used, distributed, or adapted for commercial or non-commercial purposes without attribution requirements.\n\n'
+                                    '• "Soft Rain Ambient" by SoundsForYou from Pixabay.com: This ambient sound is used under the Pixabay License, which allows for free commercial and non-commercial use without attribution requirements. No permission is needed to use, distribute, or adapt this content within our application.',
+                                  ),
+                                  SizedBox(height: 16),
+                                  Text(
+                                    'Disclaimer of Affiliation',
+                                    style: TextStyle(fontWeight: FontWeight.bold),
+                                  ),
+                                  Text(
+                                    'This App is not affiliated with, endorsed by, or sponsored by the World English Bible translation project, Michael Johnson, SoundsForYou, or Pixabay. All content is used in accordance with applicable licenses and permissions.',
+                                  ),
+                                  SizedBox(height: 16),
+                                  Text(
+                                    'General Terms',
+                                    style: TextStyle(fontWeight: FontWeight.bold),
+                                  ),
+                                  Text(
+                                    'While the content incorporated within this App is free for commercial use, this App itself and any proprietary features, functionalities, or original content created by Ephesian28 LLC remain the intellectual property of Ephesian28 LLC.\n\n'
+                                    'Users are permitted to use this App for personal Bible study, educational, and spiritual purposes, but may not extract, redistribute, or repurpose the App\'s proprietary code or design elements without express written permission.',
+                                  ),
+                                  SizedBox(height: 16),
+                                  Text(
+                                    'Terms of Service',
+                                    style: TextStyle(
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                  SizedBox(height: 8),
+                                  Text(
+                                    'Acceptance of Terms\n'
+                                    'By downloading, installing, or using this App, you agree to be bound by these Terms of Service. If you do not agree to these terms, please do not use the App.\n\n'
+                                    'User Accounts\n'
+                                    '• Users may be required to create an account to access certain features of the App.\n'
+                                    '• You are responsible for maintaining the confidentiality of your account information.\n'
+                                    '• You are responsible for all activities that occur under your account.\n'
+                                    '• Ephesian28 LLC reserves the right to terminate accounts that violate these terms.\n\n'
+                                    'Permitted Use\n'
+                                    '• This App is provided for personal, non-transferable use.\n'
+                                    '• You may not use the App for any illegal purpose or in violation of any local, state, national, or international law.\n'
+                                    '• You may not copy, modify, distribute, sell, or lease any part of the App without explicit permission from Ephesian28 LLC.\n\n'
+                                    'Content and Copyright\n'
+                                    '• User-generated content (such as notes, bookmarks, or highlights) remains the property of the user.\n'
+                                    '• By submitting content to shared features of the App, you grant Ephesian28 LLC a worldwide, non-exclusive license to use, reproduce, and display such content.\n'
+                                    '• You may not upload or share content that infringes on intellectual property rights of others.\n\n'
+                                    'Privacy Policy\n'
+                                    '• The App collects certain information as described in our Privacy Policy.\n'
+                                    '• By using the App, you consent to the collection and use of information as outlined in the Privacy Policy.\n\n'
+                                    'Limitation of Liability\n'
+                                    '• The App is provided "as is" without warranties of any kind.\n'
+                                    '• Ephesian28 LLC shall not be liable for any indirect, incidental, special, consequential, or punitive damages arising from your use of the App.\n'
+                                    '• The total liability of Ephesian28 LLC for any claims under these terms shall not exceed the amount you paid for the App.\n\n'
+                                    'Modifications to the App\n'
+                                    '• Ephesian28 LLC reserves the right to modify, suspend, or discontinue the App or any part thereof at any time.\n'
+                                    '• Ephesian28 LLC may update these Terms of Service from time to time. Continued use of the App after such changes constitutes acceptance of the new terms.\n\n'
+                                    'Governing Law\n'
+                                    'These Terms of Service shall be governed by and construed in accordance with the laws of the State of Arizona, without regard to its conflict of law provisions.\n\n'
+                                    'Last Updated: February 25, 2025',
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                },
               );
             },
           ),

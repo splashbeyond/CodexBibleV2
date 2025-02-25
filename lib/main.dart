@@ -31,10 +31,18 @@ class MyApp extends StatelessWidget {
               primarySwatch: Colors.blue,
               brightness: Brightness.light,
               useMaterial3: true,
+              colorScheme: ColorScheme.light(
+                primary: Colors.blue,
+                secondary: Colors.blue.shade700,
+              ),
             ),
             darkTheme: ThemeData(
               brightness: Brightness.dark,
               useMaterial3: true,
+              colorScheme: ColorScheme.dark(
+                primary: Colors.blue,
+                secondary: Colors.blue.shade300,
+              ),
             ),
             themeMode: themeProvider.isDarkMode ? ThemeMode.dark : ThemeMode.light,
             home: const MainScreen(),
@@ -71,7 +79,23 @@ class _MainScreenState extends State<MainScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Codex Bible'),
+        leading: const Padding(
+          padding: EdgeInsets.only(left: 16.0),
+          child: Align(
+            alignment: Alignment.centerLeft,
+            child: Text(
+              'Codex Bible',
+              style: TextStyle(fontSize: 18),
+            ),
+          ),
+        ),
+        leadingWidth: 120,
+        title: Image.asset(
+          'assets/images/logo.png',
+          height: 40,
+          fit: BoxFit.contain,
+        ),
+        centerTitle: true,
       ),
       body: _screens[_selectedIndex],
       bottomNavigationBar: NavigationBar(

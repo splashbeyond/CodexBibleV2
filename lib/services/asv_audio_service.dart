@@ -222,6 +222,13 @@ class ASVAudioService {
     _audioPlayer.setPlaybackRate(speed);
   }
 
+  Future<void> restart() async {
+    if (_isPlaying) {
+      await _audioPlayer.seek(Duration.zero);
+      await _audioPlayer.resume();
+    }
+  }
+
   Future<void> dispose() async {
     await _audioPlayer.dispose();
   }

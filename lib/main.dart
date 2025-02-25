@@ -7,6 +7,9 @@ import 'services/bible_service.dart';
 import 'services/asv_audio_service.dart';
 import 'constants/bible_data.dart';
 import 'models/bible_book.dart';
+import 'models/bookmarked_verse.dart';
+import 'dart:convert';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:io';
 import 'package:image_picker/image_picker.dart';
 
@@ -67,6 +70,7 @@ class _BibleReaderScreenState extends State<BibleReaderScreen> {
   final BibleService _bibleService = BibleService();
   late final ASVAudioService _asvAudioService;
   final ScrollController _scrollController = ScrollController();
+  List<BookmarkedVerse> _bookmarkedVerses = [];
   String? selectedBook = 'Genesis';
   int? selectedChapter = 1;
   List<String>? currentVerses;
@@ -81,6 +85,7 @@ class _BibleReaderScreenState extends State<BibleReaderScreen> {
     super.initState();
     _initializeServices();
     _checkAudioFiles();
+    _loadBookmarks();
   }
 
   Future<void> _initializeServices() async {
@@ -208,19 +213,121 @@ class _BibleReaderScreenState extends State<BibleReaderScreen> {
     }
   }
 
+  Future<void> _loadBookmarks() async {
+    final prefs = await SharedPreferences.getInstance();
+    final bookmarksJson = prefs.getString('bookmarks');
+    if (bookmarksJson != null) {
+      final List<dynamic> bookmarksList = jsonDecode(bookmarksJson);
+      setState(() {
+        _bookmarkedVerses = bookmarksList
+            .map((json) => BookmarkedVerse.fromJson(json))
+            .toList();
+      });
+    }
+  }
+
+  Future<void> _saveBookmarks() async {
+    final prefs = await SharedPreferences.getInstance();
+    final bookmarksJson = jsonEncode(
+      _bookmarkedVerses.map((bookmark) => bookmark.toJson()).toList(),
+    );
+    await prefs.setString('bookmarks', bookmarksJson);
+  }
+
+  void _showBookmarksDialog() {
+    showModalBottomSheet(
+      context: context,
+      builder: (context) => Container(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text(
+                  'Bookmarked Verses',
+                  style: TextStyle(
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.close),
+                  onPressed: () => Navigator.pop(context),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            Expanded(
+              child: ListView.builder(
+                itemCount: _bookmarkedVerses.length,
+                itemBuilder: (context, index) {
+                  final bookmark = _bookmarkedVerses[index];
+                  return Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 8.0),
+                    child: ListTile(
+                      title: Text(
+                        '${bookmark.book} ${bookmark.chapter}',
+                        style: const TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      subtitle: Text(
+                        bookmark.text,
+                        style: const TextStyle(
+                          fontSize: 16,
+                          height: 1.5,
+                        ),
+                      ),
+                      trailing: IconButton(
+                        icon: const Icon(Icons.delete_outline),
+                        onPressed: () async {
+                          setState(() {
+                            _bookmarkedVerses.removeAt(index);
+                          });
+                          await _saveBookmarks();
+                          if (!context.mounted) return;
+                          Navigator.pop(context);
+                          _showBookmarksDialog();
+                        },
+                      ),
+                      onTap: () {
+                        Navigator.pop(context);
+                        setState(() {
+                          selectedBook = bookmark.book;
+                          selectedChapter = bookmark.chapter;
+                        });
+                        _loadPassage();
+                      },
+                    ),
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final themeProvider = Provider.of<ThemeProvider>(context);
+    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
       appBar: AppBar(
         title: const Text('ASV Bible'),
         actions: [
           IconButton(
-            icon: Icon(Theme.of(context).brightness == Brightness.dark
-                ? Icons.light_mode
-                : Icons.dark_mode),
+            icon: Icon(isDarkMode ? Icons.light_mode : Icons.dark_mode),
             onPressed: themeProvider.toggleTheme,
+          ),
+          IconButton(
+            icon: const Icon(Icons.book),
+            onPressed: _showBookmarksDialog,
           ),
           PopupMenuButton<String>(
             icon: const Icon(Icons.menu),
@@ -349,31 +456,62 @@ class _BibleReaderScreenState extends State<BibleReaderScreen> {
   }
 
   Widget _buildVerseText(String verse, int verseIndex) {
+    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
+    final isBookmarked = _bookmarkedVerses.any((bookmark) =>
+        bookmark.book == selectedBook &&
+        bookmark.chapter == selectedChapter &&
+        bookmark.verse == verseIndex + 1);
+
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 48.0, vertical: 8.0),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Verse number
+          // Bookmark icon with animation
           SizedBox(
             width: 30,
-            child: Text(
-              '${verseIndex + 1}',
-              style: TextStyle(
-                fontSize: 14,
-                color: Theme.of(context).textTheme.bodySmall?.color,
-                fontWeight: FontWeight.bold,
+            child: TweenAnimationBuilder<double>(
+              tween: Tween<double>(
+                begin: 0.0,
+                end: isBookmarked ? 1.0 : 0.0,
               ),
+              duration: const Duration(milliseconds: 300),
+              curve: Curves.easeInOut,
+              builder: (context, value, child) {
+                return Transform.scale(
+                  scale: 0.8 + (value * 0.2), // Subtle scale animation
+                  child: IconButton(
+                    icon: Icon(
+                      isBookmarked ? Icons.bookmark : Icons.bookmark_border,
+                      size: 20,
+                    ),
+                    onPressed: () => _toggleBookmark(verseIndex),
+                    color: isDarkMode 
+                      ? Color.lerp(Colors.white54, Colors.white, value)
+                      : Color.lerp(
+                          Theme.of(context).textTheme.bodySmall?.color,
+                          Theme.of(context).primaryColor,
+                          value,
+                        ),
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(),
+                  ),
+                );
+              },
             ),
           ),
+          const SizedBox(width: 8), // Add spacing between icon and text
           // Verse text
           Expanded(
-            child: Text(
-              verse,
-              style: TextStyle(
-                fontSize: 18,
-                height: 1.5,
-                color: Theme.of(context).textTheme.bodyLarge?.color,
+            child: Padding(
+              padding: const EdgeInsets.only(top: 2.0), // Align text with icon
+              child: Text(
+                verse,
+                style: TextStyle(
+                  fontSize: 18,
+                  height: 1.5,
+                  color: Theme.of(context).textTheme.bodyLarge?.color,
+                ),
               ),
             ),
           ),
@@ -405,6 +543,18 @@ class _BibleReaderScreenState extends State<BibleReaderScreen> {
                   IconButton(
                     icon: Icon(isPlaying ? Icons.pause : Icons.play_arrow),
                     onPressed: _playPassage,
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.replay),
+                    onPressed: isPlaying ? () async {
+                      await _asvAudioService.restart();
+                      setState(() {
+                        isPlaying = true;
+                      });
+                    } : null,
+                    style: IconButton.styleFrom(
+                      foregroundColor: isPlaying ? null : Theme.of(context).disabledColor,
+                    ),
                   ),
                   Expanded(
                     child: Slider(
@@ -481,5 +631,32 @@ class _BibleReaderScreenState extends State<BibleReaderScreen> {
       _playbackSpeed = value;
     });
     _asvAudioService.setPlaybackSpeed(value);
+  }
+
+  Future<void> _toggleBookmark(int verseIndex) async {
+    if (selectedBook == null || selectedChapter == null || currentVerses == null) {
+      return;
+    }
+
+    final verse = currentVerses![verseIndex];
+    final existingIndex = _bookmarkedVerses.indexWhere((bookmark) =>
+        bookmark.book == selectedBook &&
+        bookmark.chapter == selectedChapter &&
+        bookmark.verse == verseIndex + 1);
+
+    setState(() {
+      if (existingIndex >= 0) {
+        _bookmarkedVerses.removeAt(existingIndex);
+      } else {
+        _bookmarkedVerses.add(BookmarkedVerse(
+          book: selectedBook!,
+          chapter: selectedChapter!,
+          verse: verseIndex + 1,
+          text: verse,
+        ));
+      }
+    });
+
+    await _saveBookmarks();
   }
 }

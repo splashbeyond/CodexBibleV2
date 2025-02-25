@@ -58,12 +58,14 @@ class ASVAudioService {
 
   void _setupAudioPlayer() {
     _audioPlayer.onPlayerComplete.listen((_) async {
+      print('Audio playback completed for $_currentBook chapter $_currentChapter');
       if (_currentBook != null && _currentChapter != null) {
         // Get the maximum chapters for the current book
         final maxChapters = BibleData.books[_currentBook] ?? 1;
         
         if (_currentChapter! < maxChapters) {
           // Move to next chapter
+          print('Moving to next chapter: ${_currentChapter! + 1}');
           _currentChapter = _currentChapter! + 1;
           await setPassage(_currentBook!, _currentChapter!, _currentVerses);
           await play();
@@ -72,20 +74,25 @@ class ASVAudioService {
           final booksList = BibleData.books.keys.toList();
           final currentIndex = booksList.indexOf(_currentBook!);
           if (currentIndex < booksList.length - 1) {
-            _currentBook = booksList[currentIndex + 1];
+            final nextBook = booksList[currentIndex + 1];
+            print('Moving to next book: $nextBook chapter 1');
+            _currentBook = nextBook;
             _currentChapter = 1;
             await setPassage(_currentBook!, _currentChapter!, _currentVerses);
             await play();
           } else {
+            print('Reached end of Bible, stopping playback');
             await _stop();
           }
         }
         
         // Notify listeners about the chapter change
         if (_onChapterChangeCallback != null) {
+          print('Notifying chapter change: $_currentBook $_currentChapter');
           _onChapterChangeCallback!(_currentBook!, _currentChapter!);
         }
       } else {
+        print('No current book or chapter set, stopping playback');
         await _stop();
       }
     });

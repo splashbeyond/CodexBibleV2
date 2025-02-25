@@ -111,7 +111,7 @@ class ASVAudioService {
       }
 
       // Format chapter number with leading zero if needed
-      final chapterStr = chapter.toString().padLeft(2, '0');
+      String chapterStr = chapter.toString().padLeft(2, '0');
       
       // Special cases for single-chapter books
       if (book == 'Obadiah' || book == 'Philemon' || book == 'Jude' || 
@@ -134,6 +134,12 @@ class ASVAudioService {
         bookInPath = 'Lam';
       } else if (book == 'Psalms') {
         bookInPath = 'Psalm';
+        // Psalms uses 3-digit chapter numbers
+        chapterStr = chapter.toString().padLeft(3, '0');
+      } else if (book == 'Proverbs') {
+        bookInPath = 'Prov';
+      } else if (book == 'Song of Solomon') {
+        bookInPath = 'Song_of_Solomon';
       }
 
       // Handle numbered books

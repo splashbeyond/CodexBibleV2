@@ -33,7 +33,31 @@ class _HomeScreenState extends State<HomeScreen> {
   void initState() {
     super.initState();
     _audioStateManager = Provider.of<AudioStateManager>(context, listen: false);
-    _initializeServices();
+    _loadSavedPosition().then((_) => _initializeServices());
+  }
+
+  Future<void> _loadSavedPosition() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      setState(() {
+        selectedBook = prefs.getString('selectedBook') ?? 'Genesis';
+        selectedChapter = prefs.getInt('selectedChapter') ?? 1;
+      });
+      print('Loaded saved position: $selectedBook chapter $selectedChapter');
+    } catch (e) {
+      print('Error loading saved position: $e');
+    }
+  }
+
+  Future<void> _savePosition() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('selectedBook', selectedBook ?? 'Genesis');
+      await prefs.setInt('selectedChapter', selectedChapter ?? 1);
+      print('Saved position: $selectedBook chapter $selectedChapter');
+    } catch (e) {
+      print('Error saving position: $e');
+    }
   }
 
   Future<void> _initializeServices() async {
@@ -194,12 +218,13 @@ class _HomeScreenState extends State<HomeScreen> {
                 actions: [
                   PopupMenuButton<String>(
                     icon: const Icon(Icons.menu),
-                    onSelected: (String book) {
+                    onSelected: (String book) async {
                       setState(() {
                         selectedBook = book;
                         selectedChapter = 1;
                       });
-                      _loadPassage();
+                      await _loadPassage();
+                      await _savePosition();
                     },
                     itemBuilder: (BuildContext context) {
                       return BibleData.books.keys.map((String book) {
@@ -212,11 +237,12 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                   PopupMenuButton<int>(
                     icon: Text('Ch. ${selectedChapter ?? ""}'),
-                    onSelected: (int chapter) {
+                    onSelected: (int chapter) async {
                       setState(() {
                         selectedChapter = chapter;
                       });
-                      _loadPassage();
+                      await _loadPassage();
+                      await _savePosition();
                     },
                     itemBuilder: (BuildContext context) {
                       if (selectedBook == null) return [];
@@ -411,6 +437,7 @@ class _HomeScreenState extends State<HomeScreen> {
           selectedChapter = lastChapter;
         });
         await _loadPassage();
+        await _savePosition();
         if (isPlaying) {
           await _audioStateManager.resumeAll();
         }
@@ -427,6 +454,7 @@ class _HomeScreenState extends State<HomeScreen> {
           selectedChapter = 1;
         });
         await _loadPassage();
+        await _savePosition();
         if (isPlaying) {
           await _audioStateManager.resumeAll();
         }
@@ -436,6 +464,7 @@ class _HomeScreenState extends State<HomeScreen> {
         selectedChapter = newChapter;
       });
       await _loadPassage();
+      await _savePosition();
       if (isPlaying) {
         await _audioStateManager.resumeAll();
       }

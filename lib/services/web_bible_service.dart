@@ -1,153 +1,166 @@
 import 'dart:async';
 import 'package:flutter/services.dart';
-import 'package:path_provider/path_provider.dart';
-import 'dart:io';
-import 'package:syncfusion_flutter_pdf/pdf.dart';
-import 'dart:math';
+import '../constants/bible_data.dart';
 
 class WEBBibleService {
-  static const String pdfPath = 'assets/CodexASVBible/WEBTEXT.pdf';
-  Map<String, Map<int, List<String>>> _cachedVerses = {};
-  late PdfDocument _pdfDocument;
+  static const String _baseTextPath = 'assets/CodexASVBible/WEBTEXT.txt';
+  Map<String, Map<int, List<String>>> _cache = {};
   bool _isInitialized = false;
+  final Completer<void> _initCompleter = Completer<void>();
 
-  Future<void> initializeCache() async {
+  WEBBibleService() {
+    _initialize();
+  }
+
+  Future<void> waitForInitialization() async {
+    if (_isInitialized) return;
+    await _initCompleter.future;
+  }
+
+  Future<void> _initialize() async {
     if (_isInitialized) return;
 
     try {
-      final ByteData data = await rootBundle.load(pdfPath);
-      final List<int> bytes = data.buffer.asUint8List();
-      _pdfDocument = PdfDocument(inputBytes: bytes);
+      print('Initializing Bible service...');
       _isInitialized = true;
-      print('WEB Bible PDF loaded successfully');
+      _initCompleter.complete();
     } catch (e) {
-      print('Error initializing WEB Bible cache: $e');
-      throw Exception('Failed to load WEB Bible PDF');
+      print('Error initializing Bible service: $e');
+      _initCompleter.completeError(e);
+      throw Exception('Failed to initialize Bible service: $e');
     }
   }
 
-  Future<Map<String, dynamic>> getChapter(String book, int chapter) async {
+  String _getBookNumber(String book) {
+    // Map book names to their corresponding numbers in the file naming convention
+    final Map<String, String> bookNumbers = {
+      'Genesis': '001', 'Exodus': '002', 'Leviticus': '003', 'Numbers': '004',
+      'Deuteronomy': '005', 'Joshua': '006', 'Judges': '007', 'Ruth': '008',
+      '1 Samuel': '009', '2 Samuel': '010', '1 Kings': '011', '2 Kings': '012',
+      '1 Chronicles': '013', '2 Chronicles': '014', 'Ezra': '015', 'Nehemiah': '016',
+      'Esther': '017', 'Job': '018', 'Psalms': '019', 'Proverbs': '020',
+      'Ecclesiastes': '021', 'Song of Solomon': '022', 'Isaiah': '023', 'Jeremiah': '024',
+      'Lamentations': '025', 'Ezekiel': '026', 'Daniel': '027', 'Hosea': '028',
+      'Joel': '029', 'Amos': '030', 'Obadiah': '031', 'Jonah': '032',
+      'Micah': '033', 'Nahum': '034', 'Habakkuk': '035', 'Zephaniah': '036',
+      'Haggai': '037', 'Zechariah': '038', 'Malachi': '039', 'Matthew': '040',
+      'Mark': '041', 'Luke': '042', 'John': '043', 'Acts': '044',
+      'Romans': '045', '1 Corinthians': '046', '2 Corinthians': '047', 'Galatians': '048',
+      'Ephesians': '049', 'Philippians': '050', 'Colossians': '051', '1 Thessalonians': '052',
+      '2 Thessalonians': '053', '1 Timothy': '054', '2 Timothy': '055', 'Titus': '056',
+      'Philemon': '057', 'Hebrews': '058', 'James': '059', '1 Peter': '060',
+      '2 Peter': '061', '1 John': '062', '2 John': '063', '3 John': '064',
+      'Jude': '065', 'Revelation': '066'
+    };
+    return bookNumbers[book] ?? '001';
+  }
+
+  String _getBookAbbreviation(String book) {
+    // Map book names to their corresponding abbreviations in the file naming convention
+    final Map<String, String> bookAbbreviations = {
+      'Genesis': 'GEN', 'Exodus': 'EXO', 'Leviticus': 'LEV', 'Numbers': 'NUM',
+      'Deuteronomy': 'DEU', 'Joshua': 'JOS', 'Judges': 'JDG', 'Ruth': 'RUT',
+      '1 Samuel': '1SA', '2 Samuel': '2SA', '1 Kings': '1KI', '2 Kings': '2KI',
+      '1 Chronicles': '1CH', '2 Chronicles': '2CH', 'Ezra': 'EZR', 'Nehemiah': 'NEH',
+      'Esther': 'EST', 'Job': 'JOB', 'Psalms': 'PSA', 'Proverbs': 'PRO',
+      'Ecclesiastes': 'ECC', 'Song of Solomon': 'SNG', 'Isaiah': 'ISA', 'Jeremiah': 'JER',
+      'Lamentations': 'LAM', 'Ezekiel': 'EZK', 'Daniel': 'DAN', 'Hosea': 'HOS',
+      'Joel': 'JOL', 'Amos': 'AMO', 'Obadiah': 'OBA', 'Jonah': 'JON',
+      'Micah': 'MIC', 'Nahum': 'NAM', 'Habakkuk': 'HAB', 'Zephaniah': 'ZEP',
+      'Haggai': 'HAG', 'Zechariah': 'ZEC', 'Malachi': 'MAL', 'Matthew': 'MAT',
+      'Mark': 'MRK', 'Luke': 'LUK', 'John': 'JHN', 'Acts': 'ACT',
+      'Romans': 'ROM', '1 Corinthians': '1CO', '2 Corinthians': '2CO', 'Galatians': 'GAL',
+      'Ephesians': 'EPH', 'Philippians': 'PHP', 'Colossians': 'COL', '1 Thessalonians': '1TH',
+      '2 Thessalonians': '2TH', '1 Timothy': '1TI', '2 Timothy': '2TI', 'Titus': 'TIT',
+      'Philemon': 'PHM', 'Hebrews': 'HEB', 'James': 'JAS', '1 Peter': '1PE',
+      '2 Peter': '2PE', '1 John': '1JN', '2 John': '2JN', '3 John': '3JN',
+      'Jude': 'JUD', 'Revelation': 'REV'
+    };
+    return bookAbbreviations[book] ?? 'GEN';
+  }
+
+  Future<List<String>> getChapter(String book, int chapter) async {
+    print('Getting $book chapter $chapter');
+    
     if (!_isInitialized) {
-      await initializeCache();
+      print('Waiting for initialization...');
+      await waitForInitialization();
+    }
+
+    // Check cache first
+    if (_cache.containsKey(book) && _cache[book]!.containsKey(chapter)) {
+      print('Returning cached verses for $book $chapter');
+      return _cache[book]![chapter]!;
     }
 
     try {
-      // Check if we have cached verses for this chapter
-      if (_cachedVerses[book]?[chapter] != null) {
-        return {
-          'verses': _cachedVerses[book]![chapter]!,
-          'reference': '$book $chapter'
-        };
-      }
-
-      // Extract text from PDF and parse verses
-      final verses = await _extractVersesFromPdf(book, chapter);
+      final bookNumber = _getBookNumber(book);
+      final bookAbbrev = _getBookAbbreviation(book);
+      final chapterStr = chapter.toString().padLeft(2, '0');
+      final filePath = '$_baseTextPath/engwebp_${bookNumber}_${bookAbbrev}_${chapterStr}_read.txt';
       
-      // Cache the verses
-      _cachedVerses[book] ??= {};
-      _cachedVerses[book]![chapter] = verses;
-
-      return {
-        'verses': verses,
-        'reference': '$book $chapter'
-      };
-    } catch (e) {
-      print('Error getting WEB chapter: $e');
-      throw Exception('Failed to load WEB chapter');
-    }
-  }
-
-  Future<List<String>> _extractVersesFromPdf(String book, int chapter) async {
-    try {
-      List<String> verses = [];
-      String chapterPattern = '$book $chapter';
-      bool foundChapter = false;
-      bool inChapter = false;
+      print('Loading file: $filePath');
+      final String text = await rootBundle.loadString(filePath);
       
-      print('Searching for chapter pattern: $chapterPattern');
-      print('Total pages in PDF: ${_pdfDocument.pages.count}');
-      
-      // First, find which page contains our chapter
-      int targetPage = -1;
-      for (int i = 0; i < _pdfDocument.pages.count && targetPage == -1; i++) {
-        String pageText = PdfTextExtractor(_pdfDocument).extractText(startPageIndex: i, endPageIndex: i);
-        if (pageText.contains(chapterPattern)) {
-          targetPage = i;
-          print('Found chapter on page ${i + 1}');
-        }
-      }
-      
-      if (targetPage == -1) {
-        print('Chapter not found in PDF');
+      if (text.isEmpty) {
+        print('Chapter file is empty: $book $chapter');
         return [];
       }
+
+      final verses = _parseVerses(text);
       
-      // Extract text from the target page and the next page (in case chapter spans pages)
-      for (int i = targetPage; i <= min(targetPage + 1, _pdfDocument.pages.count - 1); i++) {
-        String pageText = PdfTextExtractor(_pdfDocument).extractText(startPageIndex: i, endPageIndex: i);
-        List<String> lines = pageText.split('\n');
-        
-        for (String line in lines) {
-          String trimmedLine = line.trim();
-          
-          // Check for chapter heading
-          if (trimmedLine.startsWith(chapterPattern)) {
-            print('Found chapter heading: $chapterPattern');
-            foundChapter = true;
-            inChapter = true;
-            continue;
-          }
-          
-          // Check for next chapter
-          if (foundChapter && (
-              trimmedLine.startsWith('$book ${chapter + 1}') ||
-              trimmedLine.startsWith('${book.split(' ')[0]} ${chapter + 1}') // For books like "1 Kings"
-          )) {
-            print('Found next chapter, stopping extraction');
-            inChapter = false;
-            break;
-          }
-          
-          // Extract verse if it starts with a number and we're in the right chapter
-          if (inChapter) {
-            // Updated regex to better handle verse numbers and clean the text
-            RegExpMatch? match = RegExp(r'^(\d+)\s*(.+)$').firstMatch(trimmedLine);
-            if (match != null) {
-              String verseText = match.group(2) ?? '';
-              if (verseText.isNotEmpty) {
-                // Clean up the verse text by removing stray numbers and quotes
-                verseText = verseText
-                    .replaceAll(RegExp(r'\s+\d+\s*[""]\s*'), ' ') // Remove stray verse numbers with quotes
-                    .replaceAll(RegExp(r'\s+\d+\s+(?=\w)'), ' ') // Remove stray numbers before words
-                    .replaceAll(RegExp(r'\s+'), ' ') // Normalize spaces
-                    .trim();
-                
-                print('Adding verse ${match.group(1)}: ${verseText.substring(0, min(40, verseText.length))}...');
-                verses.add(verseText);
-              }
-            }
-          }
-        }
-      }
-      
-      print('Extracted ${verses.length} verses from $book $chapter');
-      if (verses.isEmpty) {
-        print('WARNING: No verses were extracted!');
-      } else {
-        print('First verse: ${verses[0]}');
-        print('Last verse: ${verses[verses.length - 1]}');
-      }
+      // Cache the verses
+      _cache.putIfAbsent(book, () => {});
+      _cache[book]![chapter] = verses;
+
+      print('Parsed ${verses.length} verses from $book $chapter');
       return verses;
-    } catch (e, stackTrace) {
-      print('Error extracting verses from PDF: $e');
-      print('Stack trace: $stackTrace');
+    } catch (e) {
+      print('Error getting chapter: $e');
       return [];
     }
   }
 
-  void dispose() {
-    if (_isInitialized) {
-      _pdfDocument.dispose();
+  List<String> _parseVerses(String chapterText) {
+    List<String> verses = [];
+    try {
+      // Split into lines and remove header lines
+      final lines = chapterText.split('\n');
+      var startIndex = 0;
+      
+      // Skip header lines (book name and chapter number)
+      while (startIndex < lines.length && 
+             (lines[startIndex].contains('Chapter') || 
+              lines[startIndex].trim().isEmpty ||
+              lines[startIndex].contains('Letter') ||
+              lines[startIndex].contains('Gospel') ||
+              lines[startIndex].contains('Book'))) {
+        startIndex++;
+      }
+      
+      // Process remaining lines as verses
+      for (int i = startIndex; i < lines.length; i++) {
+        final line = lines[i].trim();
+        if (line.isNotEmpty) {
+          verses.add(line);
+        }
+      }
+    } catch (e) {
+      print('Error parsing verses: $e');
     }
+    return verses;
+  }
+
+  List<String> getBooks() {
+    return BibleData.books.keys.toList();
+  }
+
+  int getChapterCount(String book) {
+    return BibleData.books[book] ?? 1;
+  }
+
+  void dispose() {
+    _isInitialized = false;
+    _cache.clear();
   }
 } 

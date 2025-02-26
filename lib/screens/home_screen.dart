@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../services/bible_service.dart';
+import '../services/local_bible_service.dart';
 import '../services/asv_audio_service.dart';
 import '../constants/bible_data.dart';
 import '../models/bookmarked_verse.dart';
@@ -16,14 +16,12 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  final BibleService _bibleService = BibleService();
+  final LocalBibleService _bibleService = LocalBibleService();
   final ScrollController _scrollController = ScrollController();
   String? selectedBook = 'Genesis';
   int? selectedChapter = 1;
   List<String>? currentVerses;
   bool isPlaying = false;
-  List<Map<String, dynamic>>? availableBibles;
-  String? selectedBibleId;
   bool isLoading = false;
   double _playbackSpeed = 1.0;
 
@@ -83,9 +81,7 @@ class _HomeScreenState extends State<HomeScreen> {
       );
     });
     
-    await _loadBibles().then((_) {
-      _loadPassage();
-    });
+    _loadPassage();
   }
 
   @override
@@ -94,36 +90,8 @@ class _HomeScreenState extends State<HomeScreen> {
     super.dispose();
   }
 
-  Future<void> _loadBibles() async {
-    try {
-      final bibles = await _bibleService.getAvailableBibles();
-      print('Available Bibles: ${bibles.map((b) => '${b['name']} (${b['id']})').join(', ')}');
-
-      setState(() {
-        availableBibles = bibles;
-        if (bibles.isNotEmpty) {
-          // Always select WEB Bible
-          final webBible = bibles.firstWhere(
-            (bible) =>
-              bible['abbreviation']?.toString().toUpperCase() == 'WEB' ||
-              bible['name'].toString().contains('World English') ||
-              bible['id'] == '7142879509583d59-04', // WEB Bible ID
-            orElse: () => bibles.first,
-          );
-
-          print('Selected Bible: ${webBible['name']} (${webBible['id']})');
-          selectedBibleId = webBible['id'];
-          _bibleService.setBibleId(selectedBibleId!);
-        }
-      });
-    } catch (e) {
-      print('Error loading Bibles: $e');
-      _showError('Failed to load Bible translations');
-    }
-  }
-
   Future<void> _loadPassage() async {
-    if (selectedBook == null || selectedChapter == null || selectedBibleId == null) {
+    if (selectedBook == null || selectedChapter == null) {
       return;
     }
 
@@ -184,257 +152,128 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Future<void> _checkAudioFiles() async {
-    final hasAudioFiles = await _audioStateManager.asvAudioService.areAudioFilesExtracted();
-    if (!hasAudioFiles) {
-      // Show error message
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Audio files not found in assets. Please check your app installation.'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      });
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
-    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
-    final playbackControlsHeight = 80.0;
+    final books = _bibleService.getBooks();
+    final maxChapters = selectedBook != null ? _bibleService.getChapterCount(selectedBook!) : 1;
 
     return Scaffold(
-      body: Stack(
+      appBar: AppBar(
+        title: const Text('Bible Reader'),
+        actions: [
+          IconButton(
+            icon: Icon(isPlaying ? Icons.pause : Icons.play_arrow),
+            onPressed: _playPassage,
+          ),
+        ],
+      ),
+      body: Column(
         children: [
-          CustomScrollView(
-            controller: _scrollController,
-            slivers: [
-              SliverAppBar(
-                floating: true,
-                snap: true,
-                pinned: true,
-                backgroundColor: Theme.of(context).scaffoldBackgroundColor.withOpacity(0.95),
-                elevation: 4,
-                shadowColor: Colors.black26,
-                title: Text('$selectedBook ${selectedChapter ?? ""}'),
-                actions: [
-                  PopupMenuButton<String>(
-                    icon: const Icon(Icons.menu),
-                    tooltip: 'Select Book',
-                    position: PopupMenuPosition.under,
-                    onSelected: (String book) async {
+          Padding(
+            padding: const EdgeInsets.all(8.0),
+            child: Row(
+              children: [
+                Expanded(
+                  child: DropdownButton<String>(
+                    value: selectedBook,
+                    items: books.map((String book) {
+                      return DropdownMenuItem<String>(
+                        value: book,
+                        child: Text(book),
+                      );
+                    }).toList(),
+                    onChanged: (String? newValue) {
                       setState(() {
-                        selectedBook = book;
+                        selectedBook = newValue;
                         selectedChapter = 1;
                       });
-                      await _loadPassage();
-                      await _savePosition();
-                      
-                      // Scroll to top when changing books
-                      _scrollController.animateTo(
-                        0,
-                        duration: const Duration(milliseconds: 300),
-                        curve: Curves.easeOut,
-                      );
+                      _loadPassage();
+                      _savePosition();
                     },
-                    itemBuilder: (BuildContext context) {
-                      return BibleData.books.keys.map((String book) {
-                        return PopupMenuItem<String>(
-                          value: book,
-                          child: Text(book),
-                        );
-                      }).toList();
-                    },
-                  ),
-                  PopupMenuButton<int>(
-                    icon: Text('Ch. ${selectedChapter ?? ""}'),
-                    tooltip: 'Select Chapter',
-                    position: PopupMenuPosition.under,
-                    onSelected: (int chapter) async {
-                      setState(() {
-                        selectedChapter = chapter;
-                      });
-                      await _loadPassage();
-                      await _savePosition();
-                      
-                      // Scroll to top when changing chapters
-                      _scrollController.animateTo(
-                        0,
-                        duration: const Duration(milliseconds: 300),
-                        curve: Curves.easeOut,
-                      );
-                    },
-                    itemBuilder: (BuildContext context) {
-                      if (selectedBook == null) return [];
-                      return List.generate(BibleData.books[selectedBook]!, (index) => index + 1)
-                          .map((int chapter) {
-                        return PopupMenuItem<int>(
-                          value: chapter,
-                          child: Text('Chapter $chapter'),
-                        );
-                      }).toList();
-                    },
-                  ),
-                ],
-              ),
-              if (isLoading)
-                const SliverFillRemaining(
-                  child: Center(
-                    child: CircularProgressIndicator(),
-                  ),
-                )
-              else
-                SliverList(
-                  delegate: SliverChildBuilderDelegate(
-                    (context, index) {
-                      if (currentVerses == null || index >= currentVerses!.length) {
-                        return null;
-                      }
-                      return _buildVerseText(currentVerses![index], index);
-                    },
-                    childCount: currentVerses?.length ?? 0,
                   ),
                 ),
-              // Add padding at bottom for playback controls
-              SliverToBoxAdapter(
-                child: SizedBox(height: playbackControlsHeight + 16),
-              ),
-            ],
+                const SizedBox(width: 8),
+                Expanded(
+                  child: DropdownButton<int>(
+                    value: selectedChapter,
+                    items: List.generate(maxChapters, (index) {
+                      return DropdownMenuItem<int>(
+                        value: index + 1,
+                        child: Text('Chapter ${index + 1}'),
+                      );
+                    }),
+                    onChanged: (int? newValue) {
+                      setState(() {
+                        selectedChapter = newValue;
+                      });
+                      _loadPassage();
+                      _savePosition();
+                    },
+                  ),
+                ),
+              ],
+            ),
           ),
-          if (!isLoading) ...[
-            Positioned(
-              left: 0,
-              top: 0,
-              bottom: playbackControlsHeight,
-              child: Container(
-                width: 40,
-                alignment: Alignment.center,
-                child: IconButton(
-                  icon: const Icon(Icons.chevron_left),
+          Expanded(
+            child: Stack(
+              children: [
+                if (isLoading)
+                  const Center(child: CircularProgressIndicator())
+                else if (currentVerses == null || currentVerses!.isEmpty)
+                  const Center(child: Text('No verses available'))
+                else
+                  ListView.builder(
+                    controller: _scrollController,
+                    padding: const EdgeInsets.all(16.0),
+                    itemCount: currentVerses!.length,
+                    itemBuilder: (context, index) {
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 8.0),
+                        child: Text(
+                          '${index + 1}. ${currentVerses![index]}',
+                          style: const TextStyle(fontSize: 16),
+                        ),
+                      );
+                    },
+                  ),
+              ],
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.all(8.0),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: [
+                IconButton(
+                  icon: const Icon(Icons.skip_previous),
                   onPressed: () => _navigateChapter(-1),
                 ),
-              ),
-            ),
-            Positioned(
-              right: 0,
-              top: 0,
-              bottom: playbackControlsHeight,
-              child: Container(
-                width: 40,
-                alignment: Alignment.center,
-                child: IconButton(
-                  icon: const Icon(Icons.chevron_right),
+                IconButton(
+                  icon: const Icon(Icons.skip_next),
                   onPressed: () => _navigateChapter(1),
                 ),
-              ),
+              ],
             ),
-          ],
-          Positioned(
-            left: 0,
-            right: 0,
-            bottom: 0,
-            child: _buildPlaybackControls(),
           ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildVerseText(String verse, int verseIndex) {
-    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 48.0, vertical: 8.0),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Bookmark icon
-          IconButton(
-            icon: const Icon(Icons.bookmark_border),
-            onPressed: () {
-              // Handle bookmark in the BookmarksScreen
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Go to Bookmarks tab to save verses'),
-                  duration: Duration(seconds: 2),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16.0),
+            child: Row(
+              children: [
+                const Icon(Icons.speed),
+                Expanded(
+                  child: Slider(
+                    value: _playbackSpeed,
+                    min: 0.5,
+                    max: 2.0,
+                    divisions: 6,
+                    label: '${_playbackSpeed}x',
+                    onChanged: _changePlaybackSpeed,
+                  ),
                 ),
-              );
-            },
-            iconSize: 20,
-            color: isDarkMode ? Colors.white54 : Theme.of(context).textTheme.bodySmall?.color,
-            padding: EdgeInsets.zero,
-            constraints: const BoxConstraints(),
-          ),
-          const SizedBox(width: 8),
-          // Verse text
-          Expanded(
-            child: Padding(
-              padding: const EdgeInsets.only(top: 2.0),
-              child: Text(
-                verse,
-                style: TextStyle(
-                  fontSize: 18,
-                  height: 1.5,
-                  color: Theme.of(context).textTheme.bodyLarge?.color,
-                ),
-              ),
+              ],
             ),
           ),
         ],
-      ),
-    );
-  }
-
-  Widget _buildPlaybackControls() {
-    return Container(
-      decoration: BoxDecoration(
-        color: Theme.of(context).cardColor,
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.1),
-            blurRadius: 8,
-            offset: const Offset(0, -2),
-          ),
-        ],
-      ),
-      child: SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16.0),
-              child: Row(
-                children: [
-                  IconButton(
-                    icon: Icon(_audioStateManager.isPlaying ? Icons.pause : Icons.play_arrow),
-                    onPressed: _playPassage,
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.replay),
-                    onPressed: _audioStateManager.isPlaying ? () async {
-                      await _audioStateManager.asvAudioService.restart();
-                    } : null,
-                    style: IconButton.styleFrom(
-                      foregroundColor: _audioStateManager.isPlaying ? null : Theme.of(context).disabledColor,
-                    ),
-                  ),
-                  Expanded(
-                    child: Slider(
-                      value: _playbackSpeed,
-                      min: 0.5,
-                      max: 2.0,
-                      divisions: 6,
-                      label: '${_playbackSpeed}x',
-                      onChanged: _changePlaybackSpeed,
-                    ),
-                  ),
-                  Text('${_playbackSpeed}x'),
-                ],
-              ),
-            ),
-          ],
-        ),
       ),
     );
   }
@@ -442,16 +281,16 @@ class _HomeScreenState extends State<HomeScreen> {
   Future<void> _navigateChapter(int delta) async {
     if (selectedBook == null || selectedChapter == null || isLoading) return;
 
-    final maxChapters = BibleData.books[selectedBook] ?? 1;
+    final maxChapters = _bibleService.getChapterCount(selectedBook!);
     final newChapter = selectedChapter! + delta;
 
     if (newChapter < 1) {
       // Go to previous book's last chapter
-      final booksList = BibleData.books.keys.toList();
+      final booksList = _bibleService.getBooks();
       final currentIndex = booksList.indexOf(selectedBook!);
       if (currentIndex > 0) {
         final previousBook = booksList[currentIndex - 1];
-        final lastChapter = BibleData.books[previousBook]!;
+        final lastChapter = _bibleService.getChapterCount(previousBook);
 
         setState(() {
           selectedBook = previousBook;
@@ -465,7 +304,7 @@ class _HomeScreenState extends State<HomeScreen> {
       }
     } else if (newChapter > maxChapters) {
       // Go to next book's first chapter
-      final booksList = BibleData.books.keys.toList();
+      final booksList = _bibleService.getBooks();
       final currentIndex = booksList.indexOf(selectedBook!);
       if (currentIndex < booksList.length - 1) {
         final nextBook = booksList[currentIndex + 1];

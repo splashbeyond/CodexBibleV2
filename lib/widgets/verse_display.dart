@@ -20,30 +20,15 @@ class VerseDisplay extends StatelessWidget {
         padding: const EdgeInsets.all(16.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
-          children: List.generate(verses.length, (verseIndex) {
+          children: List.generate(verses.length, (index) {
             return Padding(
-              padding: const EdgeInsets.only(bottom: 16.0),
-              child: RichText(
-                text: TextSpan(
-                  style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                    height: 1.5,
-                    fontSize: 18,
-                  ),
-                  children: [
-                    TextSpan(
-                      text: '${verseIndex + 1} ',
-                      style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                        color: Colors.grey,
-                      ),
-                    ),
-                    TextSpan(
-                      text: verses[verseIndex],
-                      style: TextStyle(
-                        color: Theme.of(context).textTheme.bodyLarge?.color,
-                      ),
-                    ),
-                  ],
+              padding: const EdgeInsets.only(bottom: 24.0),
+              child: Text(
+                '${index + 1}. ${verses[index]}',
+                style: const TextStyle(
+                  fontSize: 20,
+                  height: 1.4,
+                  color: Colors.white,
                 ),
               ),
             );

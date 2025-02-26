@@ -41,15 +41,17 @@ class LocalBibleService {
       // First try WEBTEXT.txt directory
       try {
         final bookForPath = book.replaceAll(' ', '_'); // Replace spaces with underscores for file path
-        final webtextPath = '${_getTestamentPath(book)}/engwebp_${_getBookNumber(book)}_${_getBookAbbreviation(book)}_${chapter.toString().padLeft(2, '0')}_read.txt';
+        final webtextPath = '${_getTestamentPath(book)}/engwebp_${_getBookNumber(book)}_${_getBookAbbreviation(book)}_${book == 'Psalms' ? chapter.toString().padLeft(3, '0') : chapter.toString().padLeft(2, '0')}_read.txt';
         print('Attempting to load from WEBTEXT: $webtextPath');
         content = await rootBundle.loadString(webtextPath);
       } catch (e) {
+        print('Error loading from WEBTEXT: $e');
         // If not found, try the New/Old Testament directory
         final testament = _getTestamentPath(book).contains('New_Testament') ? 'New Testament' : 'Old Testament';
         final bookNum = _getBookNumber(book).padLeft(2, '0');
         final bookForPath = book.replaceAll(' ', '_'); // Replace spaces with underscores for file path
-        final fileName = '${bookNum}_${bookForPath}_${chapter.toString().padLeft(2, '0')}.txt';
+        final chapterPadded = book == 'Psalms' ? chapter.toString().padLeft(3, '0') : chapter.toString().padLeft(2, '0');
+        final fileName = '${bookNum}_${bookForPath}_$chapterPadded.txt';
         final altPath = 'assets/CodexASVBible/$testament/$fileName';
         print('Attempting to load from alternate path: $altPath');
         content = await rootBundle.loadString(altPath);
@@ -111,8 +113,8 @@ class LocalBibleService {
   String _getBookAbbreviation(String book) {
     final bookAbbreviations = {
       'Genesis': 'GEN', 'Exodus': 'EXO', 'Leviticus': 'LEV', 'Numbers': 'NUM', 'Deuteronomy': 'DEU',
-      'Joshua': 'JOS', 'Judges': 'JDG', 'Ruth': 'RUT', '1 Samuel': 'SA1', '2 Samuel': 'SA2',
-      '1 Kings': 'KI1', '2 Kings': 'KI2', '1 Chronicles': 'CH1', '2 Chronicles': 'CH2', 'Ezra': 'EZR',
+      'Joshua': 'JOS', 'Judges': 'JDG', 'Ruth': 'RUT', '1 Samuel': '1SA', '2 Samuel': '2SA',
+      '1 Kings': '1KI', '2 Kings': '2KI', '1 Chronicles': '1CH', '2 Chronicles': '2CH', 'Ezra': 'EZR',
       'Nehemiah': 'NEH', 'Esther': 'EST', 'Job': 'JOB', 'Psalms': 'PSA', 'Proverbs': 'PRO',
       'Ecclesiastes': 'ECC', 'Song of Solomon': 'SNG', 'Isaiah': 'ISA', 'Jeremiah': 'JER', 'Lamentations': 'LAM',
       'Ezekiel': 'EZK', 'Daniel': 'DAN', 'Hosea': 'HOS', 'Joel': 'JOL', 'Amos': 'AMO',

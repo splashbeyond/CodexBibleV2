@@ -78,25 +78,6 @@ class _MainScreenState extends State<MainScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        leading: const Padding(
-          padding: EdgeInsets.only(left: 16.0),
-          child: Align(
-            alignment: Alignment.centerLeft,
-            child: Text(
-              'Codex Bible',
-              style: TextStyle(fontSize: 18),
-            ),
-          ),
-        ),
-        leadingWidth: 120,
-        title: Image.asset(
-          'assets/images/logo.png',
-          height: 40,
-          fit: BoxFit.contain,
-        ),
-        centerTitle: true,
-      ),
       body: _screens[_selectedIndex],
       bottomNavigationBar: NavigationBar(
         selectedIndex: _selectedIndex,

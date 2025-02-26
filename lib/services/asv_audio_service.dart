@@ -67,8 +67,12 @@ class ASVAudioService {
           // Move to next chapter
           print('Moving to next chapter: ${_currentChapter! + 1}');
           _currentChapter = _currentChapter! + 1;
-          await setPassage(_currentBook!, _currentChapter!, _currentVerses);
-          await play();
+          // Notify listeners about the chapter change before setting new passage
+          if (_onChapterChangeCallback != null) {
+            print('Notifying chapter change: $_currentBook $_currentChapter');
+            _onChapterChangeCallback!(_currentBook!, _currentChapter!);
+          }
+          // The HomeScreen will call setPassage when it loads the new chapter
         } else {
           // Find the next book
           final booksList = BibleData.books.keys.toList();
@@ -78,18 +82,16 @@ class ASVAudioService {
             print('Moving to next book: $nextBook chapter 1');
             _currentBook = nextBook;
             _currentChapter = 1;
-            await setPassage(_currentBook!, _currentChapter!, _currentVerses);
-            await play();
+            // Notify listeners about the chapter change before setting new passage
+            if (_onChapterChangeCallback != null) {
+              print('Notifying chapter change: $_currentBook $_currentChapter');
+              _onChapterChangeCallback!(_currentBook!, _currentChapter!);
+            }
+            // The HomeScreen will call setPassage when it loads the new chapter
           } else {
             print('Reached end of Bible, stopping playback');
             await _stop();
           }
-        }
-        
-        // Notify listeners about the chapter change
-        if (_onChapterChangeCallback != null) {
-          print('Notifying chapter change: $_currentBook $_currentChapter');
-          _onChapterChangeCallback!(_currentBook!, _currentChapter!);
         }
       } else {
         print('No current book or chapter set, stopping playback');
@@ -111,10 +113,20 @@ class ASVAudioService {
   Future<String?> _findAudioAssetForChapter(String book, int chapter) async {
     try {
       final testament = _getTestament(book);
-      final bookNumber = _bookNumbers[book];
-      if (bookNumber == null) {
-        print('Book number not found for: $book');
-        return null;
+      
+      // Get the book number based on the actual file naming
+      String bookNumber;
+      if (book == '1 Thessalonians') {
+        bookNumber = '52';
+      } else if (book == '2 Thessalonians') {
+        bookNumber = '53';
+      } else {
+        final number = _bookNumbers[book];
+        if (number == null) {
+          print('Book number not found for: $book');
+          return null;
+        }
+        bookNumber = number;
       }
 
       // Format chapter number with leading zero if needed
@@ -123,7 +135,13 @@ class ASVAudioService {
       // Special cases for single-chapter books
       if (book == 'Obadiah' || book == 'Philemon' || book == 'Jude' || 
           book == '2 John' || book == '3 John') {
-        final fileName = '${bookNumber}_$book.mp3';
+        String bookInPath = book;
+        if (book == '2 John') {
+          bookInPath = '2John';
+        } else if (book == '3 John') {
+          bookInPath = '3John';
+        }
+        final fileName = '${bookNumber}_${bookInPath.replaceAll(' ', '')}.mp3';
         final path = 'CodexASVBible/$testament/$fileName';
         print('Trying single-chapter book path: $path');
         return path;
@@ -133,26 +151,33 @@ class ASVAudioService {
       String bookInPath = book;
       if (book == 'Galatians') {
         bookInPath = 'Gal';
-      } else if (book == '1 Thessalonians') {
-        bookInPath = '1Thessa';
-      } else if (book == '2 Thessalonians') {
-        bookInPath = '2Thessa';
+      } else if (book == '1 John') {
+        bookInPath = '1John';
+      } else if (book == '1 Samuel') {
+        bookInPath = '1Samuel';
+      } else if (book == '2 Samuel') {
+        bookInPath = '2Samuel';
+      } else if (book == '1 Kings') {
+        bookInPath = '1Kings';
+      } else if (book == '2 Kings') {
+        bookInPath = '2Kings';
+      } else if (book == '1 Chronicles') {
+        bookInPath = '1Chronicles';
+      } else if (book == '2 Chronicles') {
+        bookInPath = '2Chronicles';
       } else if (book == 'Lamentations') {
         bookInPath = 'Lam';
-      } else if (book == 'Psalms') {
-        bookInPath = 'Psalm';
-        // Psalms uses 3-digit chapter numbers
-        chapterStr = chapter.toString().padLeft(3, '0');
       } else if (book == 'Proverbs') {
         bookInPath = 'Prov';
-      } else if (book == 'Song of Solomon') {
-        bookInPath = 'Song_of_Solomon';
+      } else if (book == 'Psalms') {
+        // Handle Psalms special case - it uses 'Psalm' instead of 'Psalms'
+        // and needs three-digit chapter numbers
+        bookInPath = 'Psalm';
+        chapterStr = chapter.toString().padLeft(3, '0'); // Update chapter string to use 3 digits
       }
-
-      // Handle numbered books
-      if (book.startsWith('1 ') || book.startsWith('2 ') || book.startsWith('3 ')) {
-        bookInPath = book.replaceAll(' ', '');
-      }
+      
+      // Remove spaces from book name
+      bookInPath = bookInPath.replaceAll(' ', '');
 
       // Regular multi-chapter books
       final fileName = '${bookNumber}_${bookInPath}_$chapterStr.mp3';

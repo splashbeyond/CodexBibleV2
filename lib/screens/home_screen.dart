@@ -8,6 +8,7 @@ import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../services/audio_state_manager.dart';
 import 'package:google_fonts/google_fonts.dart';
+import '../services/bookmark_service.dart';
 
 class AnimatedGradientBackground extends StatefulWidget {
   final Widget child;
@@ -110,6 +111,7 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   final LocalBibleService _bibleService = LocalBibleService();
+  final BookmarkService _bookmarkService = BookmarkService();
   final ScrollController _scrollController = ScrollController();
   String? selectedBook = 'Genesis';
   int? selectedChapter = 1;
@@ -126,6 +128,7 @@ class _HomeScreenState extends State<HomeScreen> {
     super.initState();
     _audioStateManager = Provider.of<AudioStateManager>(context, listen: false);
     _loadSavedPosition().then((_) => _initializeServices());
+    _bookmarkService.loadBookmarks(); // Load saved bookmarks
   }
 
   Future<void> _loadSavedPosition() async {
@@ -363,55 +366,69 @@ class _HomeScreenState extends State<HomeScreen> {
                         ),
                       ),
                       // Audio Controls
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 0, vertical: 8.0),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 4.0),
                         child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            IconButton(
-                              icon: const Icon(Icons.skip_previous),
-                              onPressed: () => _navigateChapter(-1),
-                            ),
+                            // Play and Restart buttons
                             Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
                                 IconButton(
-                                  icon: Icon(isPlaying ? Icons.pause : Icons.play_arrow),
+                                  icon: Icon(
+                                    isPlaying ? Icons.pause : Icons.play_arrow,
+                                    color: Colors.white,
+                                  ),
                                   onPressed: _playPassage,
+                                  padding: EdgeInsets.zero,
+                                  constraints: const BoxConstraints(),
                                 ),
-                                Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    SizedBox(
-                                      width: 100,
-                                      child: SliderTheme(
-                                        data: SliderTheme.of(context).copyWith(
-                                          trackHeight: 2.0,
-                                          thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6.0),
-                                          overlayShape: const RoundSliderOverlayShape(overlayRadius: 14.0),
-                                        ),
-                                        child: Slider(
-                                          value: _playbackSpeed,
-                                          min: 0.5,
-                                          max: 2.0,
-                                          divisions: 6,
-                                          onChanged: _changePlaybackSpeed,
-                                        ),
+                                const SizedBox(width: 8),
+                                IconButton(
+                                  icon: const Icon(
+                                    Icons.replay,
+                                    color: Colors.white,
+                                  ),
+                                  onPressed: () => _audioStateManager.asvAudioService.restart(),
+                                  padding: EdgeInsets.zero,
+                                  constraints: const BoxConstraints(),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(width: 16),
+                            // Playback speed controls
+                            Expanded(
+                              child: Row(
+                                children: [
+                                  Expanded(
+                                    child: SliderTheme(
+                                      data: SliderTheme.of(context).copyWith(
+                                        trackHeight: 2.0,
+                                        thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6.0),
+                                        overlayShape: const RoundSliderOverlayShape(overlayRadius: 14.0),
+                                      ),
+                                      child: Slider(
+                                        value: _playbackSpeed,
+                                        min: 0.5,
+                                        max: 2.0,
+                                        divisions: 6,
+                                        onChanged: _changePlaybackSpeed,
                                       ),
                                     ),
-                                    Text('${_playbackSpeed}x', 
+                                  ),
+                                  const SizedBox(width: 8),
+                                  SizedBox(
+                                    width: 45,
+                                    child: Text(
+                                      '${_playbackSpeed}x',
                                       style: const TextStyle(
                                         fontSize: 12,
                                         color: Colors.white,
                                       ),
                                     ),
-                                  ],
-                                ),
-                              ],
-                            ),
-                            IconButton(
-                              icon: const Icon(Icons.skip_next),
-                              onPressed: () => _navigateChapter(1),
+                                  ),
+                                ],
+                              ),
                             ),
                           ],
                         ),
@@ -427,52 +444,153 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
               // Verses Section (no longer collapsible)
               Expanded(
-                child: Container(
-                  color: Colors.black.withOpacity(0.7),
-                  child: ListView.builder(
-                    controller: _scrollController,
-                    padding: EdgeInsets.zero,
-                    itemCount: currentVerses == null ? 1 : currentVerses!.length + 1, // +1 for the header
-                    itemBuilder: (context, index) {
-                      if (index == 0) {
-                        // Header item
-                        return Container(
-                          width: double.infinity,
-                          padding: const EdgeInsets.symmetric(vertical: 16.0),
-                          child: Text(
-                            '$selectedBook Chapter $selectedChapter',
-                            textAlign: TextAlign.center,
-                            style: GoogleFonts.playfairDisplay(
-                              fontSize: 24,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.white,
-                              letterSpacing: 0.5,
+                child: Stack(
+                  children: [
+                    Container(
+                      color: Colors.black.withOpacity(0.7),
+                      child: ListView.builder(
+                        controller: _scrollController,
+                        padding: const EdgeInsets.symmetric(horizontal: 48.0),
+                        itemCount: currentVerses == null ? 1 : currentVerses!.length + 1, // +1 for the header
+                        itemBuilder: (context, index) {
+                          if (index == 0) {
+                            // Header item
+                            return Container(
+                              width: double.infinity,
+                              padding: const EdgeInsets.symmetric(vertical: 16.0),
+                              child: Text(
+                                '$selectedBook Chapter $selectedChapter',
+                                textAlign: TextAlign.center,
+                                style: GoogleFonts.playfairDisplay(
+                                  fontSize: 24,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.white,
+                                  letterSpacing: 0.5,
+                                ),
+                              ),
+                            );
+                          }
+                          
+                          // Verse items
+                          if (isLoading) {
+                            return const Center(child: CircularProgressIndicator());
+                          }
+                          if (currentVerses == null || currentVerses!.isEmpty) {
+                            return const Center(child: Text('No verses available'));
+                          }
+                          
+                          final verseIndex = index - 1; // Adjust for header
+                          final isBookmarked = _bookmarkService.isVerseBookmarked(
+                            selectedBook!,
+                            selectedChapter!,
+                            verseIndex + 1
+                          );
+                          
+                          return Padding(
+                            padding: const EdgeInsets.fromLTRB(16.0, 0, 16.0, 8.0),
+                            child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                // Column for bookmark button and verse number
+                                Column(
+                                  children: [
+                                    // Bookmark button
+                                    SizedBox(
+                                      width: 25,
+                                      child: IconButton(
+                                        padding: EdgeInsets.zero,
+                                        constraints: const BoxConstraints(),
+                                        icon: Icon(
+                                          isBookmarked ? Icons.bookmark : Icons.bookmark_border,
+                                          size: 16,
+                                          color: Colors.white,
+                                        ),
+                                        onPressed: () async {
+                                          await _bookmarkService.toggleBookmark(
+                                            selectedBook!,
+                                            selectedChapter!,
+                                            verseIndex + 1,
+                                            currentVerses![verseIndex]
+                                          );
+                                          setState(() {}); // Refresh UI
+                                        },
+                                      ),
+                                    ),
+                                    // Verse number
+                                    SizedBox(
+                                      width: 25,
+                                      child: Text(
+                                        '${verseIndex + 1}',
+                                        style: const TextStyle(
+                                          fontSize: 12,
+                                          color: Colors.blue,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(width: 8), // Add some spacing
+                                // Verse text
+                                Expanded(
+                                  child: Padding(
+                                    padding: const EdgeInsets.only(top: 2.0), // Align with bookmark icon
+                                    child: Text(
+                                      currentVerses![verseIndex],
+                                      style: const TextStyle(
+                                        fontSize: 16,
+                                        color: Colors.white,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ],
                             ),
-                          ),
-                        );
-                      }
-                      
-                      // Verse items
-                      if (isLoading) {
-                        return const Center(child: CircularProgressIndicator());
-                      }
-                      if (currentVerses == null || currentVerses!.isEmpty) {
-                        return const Center(child: Text('No verses available'));
-                      }
-                      
-                      final verseIndex = index - 1; // Adjust for header
-                      return Padding(
-                        padding: const EdgeInsets.fromLTRB(16.0, 0, 16.0, 8.0),
-                        child: Text(
-                          '${verseIndex + 1}. ${currentVerses![verseIndex]}',
-                          style: const TextStyle(
-                            fontSize: 16,
-                            color: Colors.white,
+                          );
+                        },
+                      ),
+                    ),
+                    // Previous Chapter Button (Left)
+                    Positioned(
+                      left: 0,
+                      top: 0,
+                      bottom: 0,
+                      child: Container(
+                        width: 48,
+                        color: Colors.black.withOpacity(0.3),
+                        child: Center(
+                          child: IconButton(
+                            icon: const Icon(
+                              Icons.chevron_left,
+                              size: 40,
+                              color: Colors.white54,
+                            ),
+                            onPressed: () => _navigateChapter(-1),
                           ),
                         ),
-                      );
-                    },
-                  ),
+                      ),
+                    ),
+                    // Next Chapter Button (Right)
+                    Positioned(
+                      right: 0,
+                      top: 0,
+                      bottom: 0,
+                      child: Container(
+                        width: 48,
+                        color: Colors.black.withOpacity(0.3),
+                        child: Center(
+                          child: IconButton(
+                            icon: const Icon(
+                              Icons.chevron_right,
+                              size: 40,
+                              color: Colors.white54,
+                            ),
+                            onPressed: () => _navigateChapter(1),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ],

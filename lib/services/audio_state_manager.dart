@@ -131,6 +131,13 @@ class AudioStateManager extends ChangeNotifier {
     }
   }
 
+  // Add navigation method for bookmarks
+  Future<void> navigateToPassage(String book, int chapter) async {
+    asvAudioService.setOnChapterChangeCallback((_, __) {}); // Clear existing callback
+    await asvAudioService.setPassage(book, chapter, []); // Set new passage
+    notifyListeners();
+  }
+
   @override
   void dispose() {
     asvAudioService.dispose();

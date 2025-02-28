@@ -6,9 +6,21 @@ import 'screens/bookmarks_screen.dart';
 import 'screens/settings_screen.dart';
 import 'providers/theme_provider.dart';
 import 'services/audio_state_manager.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'services/auth_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await Firebase.initializeApp(
+    options: const FirebaseOptions(
+      apiKey: "AIzaSyD86aTHpktpc0SW9B46kK0MgIkq07OK9zg",
+      appId: "1:138554346626:ios:6843311e6e703cae0bf89b",
+      messagingSenderId: "138554346626",
+      projectId: "codexbible-30e57",
+      iosBundleId: "com.Ephesian28.SpokenWord",
+      storageBucket: "codexbible-30e57.firebasestorage.app",
+    ),
+  );
   await dotenv.load(fileName: ".env");
   runApp(const MyApp());
 }
@@ -22,6 +34,7 @@ class MyApp extends StatelessWidget {
       providers: [
         ChangeNotifierProvider(create: (_) => ThemeProvider()),
         ChangeNotifierProvider(create: (_) => AudioStateManager()),
+        Provider<AuthService>(create: (_) => AuthService()),
       ],
       child: Consumer<ThemeProvider>(
         builder: (context, themeProvider, _) {

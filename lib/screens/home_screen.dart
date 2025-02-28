@@ -254,348 +254,383 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
+    return Scaffold(
+      body: Theme.of(context).brightness == Brightness.dark
+        ? AnimatedGradientBackground(
+            child: _buildMainContent(),
+          )
+        : _buildMainContent(),
+    );
+  }
+
+  Widget _buildMainContent() {
     final books = _bibleService.getBooks();
     final maxChapters = selectedBook != null ? _bibleService.getChapterCount(selectedBook!) : 1;
 
-    return Scaffold(
-      body: AnimatedGradientBackground(
-        child: SafeArea(
-          child: Column(
-            children: [
-              // Logo section with padding
-              Padding(
-                padding: const EdgeInsets.symmetric(vertical: 16.0),
-                child: Image.asset(
-                  'assets/images/logo.png',
-                  height: 60,
-                  fit: BoxFit.contain,
-                ),
-              ),
-              // Collapsible Controls Section
-              Container(
-                color: Colors.black.withOpacity(0.7),
-                child: Column(
-                  children: [
-                    // Header with arrow
-                    InkWell(
-                      onTap: () {
-                        setState(() {
-                          _isControlsExpanded = !_isControlsExpanded;
-                        });
-                      },
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-                        child: Row(
-                          children: [
-                            const Text(
-                              'Controls',
-                              style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.white,
-                              ),
-                            ),
-                            const Spacer(),
-                            RotatedBox(
-                              quarterTurns: _isControlsExpanded ? 2 : 0,
-                              child: const Icon(
-                                Icons.arrow_drop_down,
-                                color: Colors.white,
-                              ),
-                            ),
-                          ],
+    return SafeArea(
+      child: Column(
+        children: [
+          // Logo section with padding
+          Container(
+            width: double.infinity,
+            color: Theme.of(context).brightness == Brightness.dark
+              ? Colors.transparent
+              : Colors.white,
+            padding: const EdgeInsets.symmetric(vertical: 16.0),
+            child: Image.asset(
+              'assets/images/logo.png',
+              height: 60,
+              fit: BoxFit.contain,
+            ),
+          ),
+          // Collapsible Controls Section
+          Container(
+            color: Theme.of(context).brightness == Brightness.dark
+              ? Colors.black.withOpacity(0.7)
+              : Colors.white,
+            child: Column(
+              children: [
+                // Header with arrow
+                InkWell(
+                  onTap: () {
+                    setState(() {
+                      _isControlsExpanded = !_isControlsExpanded;
+                    });
+                  },
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+                    child: Row(
+                      children: [
+                        Text(
+                          'Controls',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: Theme.of(context).brightness == Brightness.dark
+                              ? Colors.white
+                              : Colors.black,
+                          ),
                         ),
-                      ),
+                        const Spacer(),
+                        RotatedBox(
+                          quarterTurns: _isControlsExpanded ? 2 : 0,
+                          child: Icon(
+                            Icons.arrow_drop_down,
+                            color: Theme.of(context).brightness == Brightness.dark
+                              ? Colors.white
+                              : Colors.black,
+                          ),
+                        ),
+                      ],
                     ),
-                    // Collapsible content
-                    if (_isControlsExpanded) ...[
-                      // Book and Chapter Selection
-                      Padding(
-                        padding: const EdgeInsets.all(8.0),
-                        child: Row(
+                  ),
+                ),
+                // Collapsible content
+                if (_isControlsExpanded) ...[
+                  // Book and Chapter Selection
+                  Padding(
+                    padding: const EdgeInsets.all(8.0),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Theme(
+                            data: Theme.of(context).copyWith(
+                              canvasColor: Colors.black,
+                            ),
+                            child: DropdownButton<String>(
+                              value: selectedBook,
+                              items: books.map((String book) {
+                                return DropdownMenuItem<String>(
+                                  value: book,
+                                  child: Text(book),
+                                );
+                              }).toList(),
+                              onChanged: (String? newValue) {
+                                setState(() {
+                                  selectedBook = newValue;
+                                  selectedChapter = 1;
+                                });
+                                _loadPassage();
+                                _savePosition();
+                              },
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Theme(
+                            data: Theme.of(context).copyWith(
+                              canvasColor: Colors.black,
+                            ),
+                            child: DropdownButton<int>(
+                              value: selectedChapter,
+                              items: List.generate(maxChapters, (index) {
+                                return DropdownMenuItem<int>(
+                                  value: index + 1,
+                                  child: Text('Chapter ${index + 1}'),
+                                );
+                              }),
+                              onChanged: (int? newValue) {
+                                setState(() {
+                                  selectedChapter = newValue;
+                                });
+                                _loadPassage();
+                                _savePosition();
+                              },
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  // Audio Controls
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 4.0),
+                    child: Row(
+                      children: [
+                        // Play and Restart buttons
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
                           children: [
-                            Expanded(
-                              child: Theme(
-                                data: Theme.of(context).copyWith(
-                                  canvasColor: Colors.black,
-                                ),
-                                child: DropdownButton<String>(
-                                  value: selectedBook,
-                                  items: books.map((String book) {
-                                    return DropdownMenuItem<String>(
-                                      value: book,
-                                      child: Text(book),
-                                    );
-                                  }).toList(),
-                                  onChanged: (String? newValue) {
-                                    setState(() {
-                                      selectedBook = newValue;
-                                      selectedChapter = 1;
-                                    });
-                                    _loadPassage();
-                                    _savePosition();
-                                  },
-                                ),
+                            IconButton(
+                              icon: Icon(
+                                isPlaying ? Icons.pause : Icons.play_arrow,
+                                color: Theme.of(context).brightness == Brightness.dark
+                                  ? Colors.white
+                                  : Colors.black,
                               ),
+                              onPressed: _playPassage,
+                              padding: EdgeInsets.zero,
+                              constraints: const BoxConstraints(),
                             ),
                             const SizedBox(width: 8),
-                            Expanded(
-                              child: Theme(
-                                data: Theme.of(context).copyWith(
-                                  canvasColor: Colors.black,
-                                ),
-                                child: DropdownButton<int>(
-                                  value: selectedChapter,
-                                  items: List.generate(maxChapters, (index) {
-                                    return DropdownMenuItem<int>(
-                                      value: index + 1,
-                                      child: Text('Chapter ${index + 1}'),
-                                    );
-                                  }),
-                                  onChanged: (int? newValue) {
-                                    setState(() {
-                                      selectedChapter = newValue;
-                                    });
-                                    _loadPassage();
-                                    _savePosition();
-                                  },
-                                ),
+                            IconButton(
+                              icon: Icon(
+                                Icons.replay,
+                                color: Theme.of(context).brightness == Brightness.dark
+                                  ? Colors.white
+                                  : Colors.black,
                               ),
+                              onPressed: () => _audioStateManager.asvAudioService.restart(),
+                              padding: EdgeInsets.zero,
+                              constraints: const BoxConstraints(),
                             ),
                           ],
                         ),
-                      ),
-                      // Audio Controls
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 4.0),
+                        const SizedBox(width: 16),
+                        // Playback speed controls
+                        Expanded(
+                          child: Row(
+                            children: [
+                              Expanded(
+                                child: SliderTheme(
+                                  data: SliderTheme.of(context).copyWith(
+                                    trackHeight: 2.0,
+                                    thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6.0),
+                                    overlayShape: const RoundSliderOverlayShape(overlayRadius: 14.0),
+                                  ),
+                                  child: Slider(
+                                    value: _playbackSpeed,
+                                    min: 0.5,
+                                    max: 2.0,
+                                    divisions: 6,
+                                    onChanged: _changePlaybackSpeed,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              SizedBox(
+                                width: 45,
+                                child: Text(
+                                  '${_playbackSpeed}x',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: Theme.of(context).brightness == Brightness.dark
+                                      ? Colors.white
+                                      : Colors.black,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+                // Divider for visual separation
+                Divider(
+                  height: 1,
+                  color: Theme.of(context).brightness == Brightness.dark
+                    ? Colors.white.withOpacity(0.2)
+                    : Colors.black.withOpacity(0.2),
+                ),
+              ],
+            ),
+          ),
+          // Verses Section (no longer collapsible)
+          Expanded(
+            child: Stack(
+              children: [
+                Container(
+                  color: Theme.of(context).brightness == Brightness.dark
+                    ? Colors.black.withOpacity(0.7)
+                    : Colors.white,
+                  child: ListView.builder(
+                    controller: _scrollController,
+                    padding: const EdgeInsets.symmetric(horizontal: 48.0),
+                    itemCount: currentVerses == null ? 1 : currentVerses!.length + 1, // +1 for the header
+                    itemBuilder: (context, index) {
+                      if (index == 0) {
+                        // Header item
+                        return Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.symmetric(vertical: 16.0),
+                          child: Text(
+                            '$selectedBook Chapter $selectedChapter',
+                            textAlign: TextAlign.center,
+                            style: GoogleFonts.playfairDisplay(
+                              fontSize: 24,
+                              fontWeight: FontWeight.bold,
+                              color: Theme.of(context).brightness == Brightness.dark
+                                ? Colors.white
+                                : Colors.black,
+                              letterSpacing: 0.5,
+                            ),
+                          ),
+                        );
+                      }
+                      
+                      // Verse items
+                      if (isLoading) {
+                        return const Center(child: CircularProgressIndicator());
+                      }
+                      if (currentVerses == null || currentVerses!.isEmpty) {
+                        return const Center(child: Text('No verses available'));
+                      }
+                      
+                      final verseIndex = index - 1; // Adjust for header
+                      final isBookmarked = _bookmarkService.isVerseBookmarked(
+                        selectedBook!,
+                        selectedChapter!,
+                        verseIndex + 1
+                      );
+                      
+                      return Padding(
+                        padding: const EdgeInsets.fromLTRB(16.0, 0, 16.0, 8.0),
                         child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            // Play and Restart buttons
+                            // Row for bookmark icon and verse number
                             Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                IconButton(
-                                  icon: Icon(
-                                    isPlaying ? Icons.pause : Icons.play_arrow,
-                                    color: Colors.white,
+                                // Bookmark button
+                                SizedBox(
+                                  width: 25,
+                                  child: IconButton(
+                                    padding: EdgeInsets.zero,
+                                    constraints: const BoxConstraints(),
+                                    icon: Icon(
+                                      isBookmarked ? Icons.bookmark : Icons.bookmark_border,
+                                      size: 16,
+                                      color: Theme.of(context).brightness == Brightness.dark 
+                                        ? Colors.white 
+                                        : Colors.black,
+                                    ),
+                                    onPressed: () async {
+                                      await _bookmarkService.toggleBookmark(
+                                        selectedBook!,
+                                        selectedChapter!,
+                                        verseIndex + 1,
+                                        currentVerses![verseIndex]
+                                      );
+                                      setState(() {}); // Refresh UI
+                                    },
                                   ),
-                                  onPressed: _playPassage,
-                                  padding: EdgeInsets.zero,
-                                  constraints: const BoxConstraints(),
                                 ),
-                                const SizedBox(width: 8),
-                                IconButton(
-                                  icon: const Icon(
-                                    Icons.replay,
-                                    color: Colors.white,
+                                // Verse number
+                                Text(
+                                  '${verseIndex + 1}',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: Colors.blue,
+                                    fontWeight: FontWeight.bold,
                                   ),
-                                  onPressed: () => _audioStateManager.asvAudioService.restart(),
-                                  padding: EdgeInsets.zero,
-                                  constraints: const BoxConstraints(),
                                 ),
                               ],
                             ),
-                            const SizedBox(width: 16),
-                            // Playback speed controls
+                            const SizedBox(width: 8), // Add some spacing
+                            // Verse text
                             Expanded(
-                              child: Row(
-                                children: [
-                                  Expanded(
-                                    child: SliderTheme(
-                                      data: SliderTheme.of(context).copyWith(
-                                        trackHeight: 2.0,
-                                        thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6.0),
-                                        overlayShape: const RoundSliderOverlayShape(overlayRadius: 14.0),
-                                      ),
-                                      child: Slider(
-                                        value: _playbackSpeed,
-                                        min: 0.5,
-                                        max: 2.0,
-                                        divisions: 6,
-                                        onChanged: _changePlaybackSpeed,
-                                      ),
-                                    ),
-                                  ),
-                                  const SizedBox(width: 8),
-                                  SizedBox(
-                                    width: 45,
-                                    child: Text(
-                                      '${_playbackSpeed}x',
-                                      style: const TextStyle(
-                                        fontSize: 12,
-                                        color: Colors.white,
-                                      ),
-                                    ),
-                                  ),
-                                ],
+                              child: Text(
+                                currentVerses![verseIndex],
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  color: Theme.of(context).brightness == Brightness.dark 
+                                    ? Colors.white 
+                                    : Colors.black,
+                                ),
                               ),
                             ),
                           ],
                         ),
-                      ),
-                    ],
-                    // Divider for visual separation
-                    Divider(
-                      height: 1,
-                      color: Colors.white.withOpacity(0.2),
-                    ),
-                  ],
+                      );
+                    },
+                  ),
                 ),
-              ),
-              // Verses Section (no longer collapsible)
-              Expanded(
-                child: Stack(
-                  children: [
-                    Container(
-                      color: Colors.black.withOpacity(0.7),
-                      child: ListView.builder(
-                        controller: _scrollController,
-                        padding: const EdgeInsets.symmetric(horizontal: 48.0),
-                        itemCount: currentVerses == null ? 1 : currentVerses!.length + 1, // +1 for the header
-                        itemBuilder: (context, index) {
-                          if (index == 0) {
-                            // Header item
-                            return Container(
-                              width: double.infinity,
-                              padding: const EdgeInsets.symmetric(vertical: 16.0),
-                              child: Text(
-                                '$selectedBook Chapter $selectedChapter',
-                                textAlign: TextAlign.center,
-                                style: GoogleFonts.playfairDisplay(
-                                  fontSize: 24,
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.white,
-                                  letterSpacing: 0.5,
-                                ),
-                              ),
-                            );
-                          }
-                          
-                          // Verse items
-                          if (isLoading) {
-                            return const Center(child: CircularProgressIndicator());
-                          }
-                          if (currentVerses == null || currentVerses!.isEmpty) {
-                            return const Center(child: Text('No verses available'));
-                          }
-                          
-                          final verseIndex = index - 1; // Adjust for header
-                          final isBookmarked = _bookmarkService.isVerseBookmarked(
-                            selectedBook!,
-                            selectedChapter!,
-                            verseIndex + 1
-                          );
-                          
-                          return Padding(
-                            padding: const EdgeInsets.fromLTRB(16.0, 0, 16.0, 8.0),
-                            child: Row(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                // Column for bookmark button and verse number
-                                Column(
-                                  children: [
-                                    // Bookmark button
-                                    SizedBox(
-                                      width: 25,
-                                      child: IconButton(
-                                        padding: EdgeInsets.zero,
-                                        constraints: const BoxConstraints(),
-                                        icon: Icon(
-                                          isBookmarked ? Icons.bookmark : Icons.bookmark_border,
-                                          size: 16,
-                                          color: Colors.white,
-                                        ),
-                                        onPressed: () async {
-                                          await _bookmarkService.toggleBookmark(
-                                            selectedBook!,
-                                            selectedChapter!,
-                                            verseIndex + 1,
-                                            currentVerses![verseIndex]
-                                          );
-                                          setState(() {}); // Refresh UI
-                                        },
-                                      ),
-                                    ),
-                                    // Verse number
-                                    SizedBox(
-                                      width: 25,
-                                      child: Text(
-                                        '${verseIndex + 1}',
-                                        style: const TextStyle(
-                                          fontSize: 12,
-                                          color: Colors.blue,
-                                          fontWeight: FontWeight.bold,
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                                const SizedBox(width: 8), // Add some spacing
-                                // Verse text
-                                Expanded(
-                                  child: Padding(
-                                    padding: const EdgeInsets.only(top: 2.0), // Align with bookmark icon
-                                    child: Text(
-                                      currentVerses![verseIndex],
-                                      style: const TextStyle(
-                                        fontSize: 16,
-                                        color: Colors.white,
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          );
-                        },
-                      ),
-                    ),
-                    // Previous Chapter Button (Left)
-                    Positioned(
-                      left: 0,
-                      top: 0,
-                      bottom: 0,
-                      child: Container(
-                        width: 48,
-                        color: Colors.black.withOpacity(0.3),
-                        child: Center(
-                          child: IconButton(
-                            icon: const Icon(
-                              Icons.chevron_left,
-                              size: 40,
-                              color: Colors.white54,
-                            ),
-                            onPressed: () => _navigateChapter(-1),
-                          ),
+                // Previous Chapter Button (Left)
+                Positioned(
+                  left: 0,
+                  top: 0,
+                  bottom: 0,
+                  child: Container(
+                    width: 48,
+                    color: Theme.of(context).brightness == Brightness.dark
+                      ? Colors.black.withOpacity(0.3)
+                      : Colors.grey.withOpacity(0.1),
+                    child: Center(
+                      child: IconButton(
+                        icon: Icon(
+                          Icons.chevron_left,
+                          size: 40,
+                          color: Theme.of(context).brightness == Brightness.dark
+                            ? Colors.white54
+                            : Colors.black45,
                         ),
+                        onPressed: () => _navigateChapter(-1),
                       ),
                     ),
-                    // Next Chapter Button (Right)
-                    Positioned(
-                      right: 0,
-                      top: 0,
-                      bottom: 0,
-                      child: Container(
-                        width: 48,
-                        color: Colors.black.withOpacity(0.3),
-                        child: Center(
-                          child: IconButton(
-                            icon: const Icon(
-                              Icons.chevron_right,
-                              size: 40,
-                              color: Colors.white54,
-                            ),
-                            onPressed: () => _navigateChapter(1),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
+                  ),
                 ),
-              ),
-            ],
+                // Next Chapter Button (Right)
+                Positioned(
+                  right: 0,
+                  top: 0,
+                  bottom: 0,
+                  child: Container(
+                    width: 48,
+                    color: Theme.of(context).brightness == Brightness.dark
+                      ? Colors.black.withOpacity(0.3)
+                      : Colors.grey.withOpacity(0.1),
+                    child: Center(
+                      child: IconButton(
+                        icon: Icon(
+                          Icons.chevron_right,
+                          size: 40,
+                          color: Theme.of(context).brightness == Brightness.dark
+                            ? Colors.white54
+                            : Colors.black45,
+                        ),
+                        onPressed: () => _navigateChapter(1),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
-        ),
+        ],
       ),
     );
   }

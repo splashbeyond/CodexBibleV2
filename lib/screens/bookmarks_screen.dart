@@ -331,30 +331,36 @@ class _BookmarksScreenState extends State<BookmarksScreen> {
                               : 1,
                             margin: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
                             child: ListTile(
-                              leading: IconButton(
-                                icon: Icon(
-                                  Icons.bookmark,
-                                  color: Theme.of(context).brightness == Brightness.dark 
-                                    ? Colors.white 
-                                    : Colors.black,
-                                ),
-                                onPressed: () async {
-                                  try {
-                                    await _bookmarkService.toggleBookmark(
-                                      bookmark.book,
-                                      bookmark.chapter,
-                                      bookmark.verse,
-                                      bookmark.text,
-                                    );
-                                    setState(() {});
-                                  } catch (e) {
-                                    if (context.mounted) {
-                                      ScaffoldMessenger.of(context).showSnackBar(
-                                        SnackBar(content: Text('Error removing bookmark: $e')),
+                              leading: Container(
+                                width: 48,
+                                height: 48,
+                                child: IconButton(
+                                  icon: Icon(
+                                    Icons.bookmark,
+                                    color: Theme.of(context).brightness == Brightness.dark 
+                                      ? Colors.white 
+                                      : Colors.black,
+                                  ),
+                                  padding: EdgeInsets.zero,
+                                  constraints: BoxConstraints(),
+                                  onPressed: () async {
+                                    try {
+                                      await _bookmarkService.toggleBookmark(
+                                        bookmark.book,
+                                        bookmark.chapter,
+                                        bookmark.verse,
+                                        bookmark.text,
                                       );
+                                      setState(() {});
+                                    } catch (e) {
+                                      if (context.mounted) {
+                                        ScaffoldMessenger.of(context).showSnackBar(
+                                          SnackBar(content: Text('Error removing bookmark: $e')),
+                                        );
+                                      }
                                     }
-                                  }
-                                },
+                                  },
+                                ),
                               ),
                               title: Text(
                                 '${bookmark.book} ${bookmark.chapter}:${bookmark.verse}',

@@ -128,7 +128,8 @@ class _HomeScreenState extends State<HomeScreen> {
     super.initState();
     _audioStateManager = Provider.of<AudioStateManager>(context, listen: false);
     _loadSavedPosition().then((_) => _initializeServices());
-    _bookmarkService.loadBookmarks(); // Load saved bookmarks
+    _bookmarkService.setupAuthListener(); // Set up auth listener
+    _loadBookmarks(); // Load saved bookmarks
   }
 
   Future<void> _loadSavedPosition() async {
@@ -478,7 +479,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     : Colors.white,
                   child: ListView.builder(
                     controller: _scrollController,
-                    padding: const EdgeInsets.symmetric(horizontal: 48.0),
+                    padding: const EdgeInsets.symmetric(horizontal: 16.0), // Reduced padding to extend text
                     itemCount: currentVerses == null ? 1 : currentVerses!.length + 1, // +1 for the header
                     itemBuilder: (context, index) {
                       if (index == 0) {
@@ -526,27 +527,79 @@ class _HomeScreenState extends State<HomeScreen> {
                               mainAxisSize: MainAxisSize.min,
                               children: [
                                 // Bookmark button
-                                SizedBox(
-                                  width: 25,
-                                  child: IconButton(
-                                    padding: EdgeInsets.zero,
-                                    constraints: const BoxConstraints(),
-                                    icon: Icon(
-                                      isBookmarked ? Icons.bookmark : Icons.bookmark_border,
-                                      size: 16,
-                                      color: Theme.of(context).brightness == Brightness.dark 
-                                        ? Colors.white 
-                                        : Colors.black,
+                                Container(
+                                  width: 32,
+                                  height: 32,
+                                  alignment: Alignment.center,
+                                  child: Material(
+                                    color: Colors.transparent,
+                                    child: InkWell(
+                                      borderRadius: BorderRadius.circular(16),
+                                      onTap: () async {
+                                        try {
+                                          if (!_bookmarkService.isAuthenticated) {
+                                            ScaffoldMessenger.of(context).showSnackBar(
+                                              const SnackBar(
+                                                content: Text('Please sign in to bookmark verses'),
+                                                duration: Duration(seconds: 2),
+                                              ),
+                                            );
+                                            return;
+                                          }
+
+                                          final wasBookmarked = _bookmarkService.isVerseBookmarked(
+                                            selectedBook!,
+                                            selectedChapter!,
+                                            verseIndex + 1
+                                          );
+
+                                          // Update UI immediately
+                                          setState(() {});
+
+                                          await _bookmarkService.toggleBookmark(
+                                            selectedBook!,
+                                            selectedChapter!,
+                                            verseIndex + 1,
+                                            currentVerses![verseIndex]
+                                          );
+
+                                          if (mounted) {
+                                            ScaffoldMessenger.of(context).showSnackBar(
+                                              SnackBar(
+                                                content: Text(
+                                                  wasBookmarked ? 'Bookmark removed' : 'Verse bookmarked'
+                                                ),
+                                                duration: const Duration(seconds: 1),
+                                              ),
+                                            );
+                                          }
+                                        } catch (e) {
+                                          print('Error toggling bookmark: $e');
+                                          if (mounted) {
+                                            ScaffoldMessenger.of(context).showSnackBar(
+                                              SnackBar(
+                                                content: Text('Error: $e'),
+                                                backgroundColor: Colors.red,
+                                                duration: const Duration(seconds: 2),
+                                              ),
+                                            );
+                                          }
+                                          // Refresh bookmarks to ensure UI is in sync
+                                          await _loadBookmarks();
+                                        }
+                                      },
+                                      child: Icon(
+                                        _bookmarkService.isVerseBookmarked(
+                                          selectedBook!,
+                                          selectedChapter!,
+                                          verseIndex + 1
+                                        ) ? Icons.bookmark : Icons.bookmark_border,
+                                        size: 16,
+                                        color: Theme.of(context).brightness == Brightness.dark 
+                                          ? Colors.white 
+                                          : Colors.black,
+                                      ),
                                     ),
-                                    onPressed: () async {
-                                      await _bookmarkService.toggleBookmark(
-                                        selectedBook!,
-                                        selectedChapter!,
-                                        verseIndex + 1,
-                                        currentVerses![verseIndex]
-                                      );
-                                      setState(() {}); // Refresh UI
-                                    },
                                   ),
                                 ),
                                 // Verse number
@@ -586,19 +639,25 @@ class _HomeScreenState extends State<HomeScreen> {
                   bottom: 0,
                   child: Container(
                     width: 48,
-                    color: Theme.of(context).brightness == Brightness.dark
-                      ? Colors.black.withOpacity(0.3)
-                      : Colors.grey.withOpacity(0.1),
+                    color: Colors.transparent, // Make container transparent
                     child: Center(
-                      child: IconButton(
-                        icon: Icon(
-                          Icons.chevron_left,
-                          size: 40,
+                      child: Container(
+                        decoration: BoxDecoration(
                           color: Theme.of(context).brightness == Brightness.dark
-                            ? Colors.white54
-                            : Colors.black45,
+                            ? Colors.black.withOpacity(0.3)
+                            : Colors.grey.withOpacity(0.1),
+                          borderRadius: const BorderRadius.horizontal(right: Radius.circular(8)),
                         ),
-                        onPressed: () => _navigateChapter(-1),
+                        child: IconButton(
+                          icon: Icon(
+                            Icons.chevron_left,
+                            size: 40,
+                            color: Theme.of(context).brightness == Brightness.dark
+                              ? Colors.white.withOpacity(0.7)
+                              : Colors.black.withOpacity(0.4),
+                          ),
+                          onPressed: () => _navigateChapter(-1),
+                        ),
                       ),
                     ),
                   ),
@@ -610,19 +669,25 @@ class _HomeScreenState extends State<HomeScreen> {
                   bottom: 0,
                   child: Container(
                     width: 48,
-                    color: Theme.of(context).brightness == Brightness.dark
-                      ? Colors.black.withOpacity(0.3)
-                      : Colors.grey.withOpacity(0.1),
+                    color: Colors.transparent, // Make container transparent
                     child: Center(
-                      child: IconButton(
-                        icon: Icon(
-                          Icons.chevron_right,
-                          size: 40,
+                      child: Container(
+                        decoration: BoxDecoration(
                           color: Theme.of(context).brightness == Brightness.dark
-                            ? Colors.white54
-                            : Colors.black45,
+                            ? Colors.black.withOpacity(0.3)
+                            : Colors.grey.withOpacity(0.1),
+                          borderRadius: const BorderRadius.horizontal(left: Radius.circular(8)),
                         ),
-                        onPressed: () => _navigateChapter(1),
+                        child: IconButton(
+                          icon: Icon(
+                            Icons.chevron_right,
+                            size: 40,
+                            color: Theme.of(context).brightness == Brightness.dark
+                              ? Colors.white.withOpacity(0.7)
+                              : Colors.black.withOpacity(0.4),
+                          ),
+                          onPressed: () => _navigateChapter(1),
+                        ),
                       ),
                     ),
                   ),
@@ -693,5 +758,21 @@ class _HomeScreenState extends State<HomeScreen> {
       _playbackSpeed = value;
     });
     _audioStateManager.asvAudioService.setPlaybackSpeed(value);
+  }
+
+  Future<void> _loadBookmarks() async {
+    try {
+      await _bookmarkService.loadBookmarks();
+      if (mounted) {
+        setState(() {}); // Refresh UI after loading bookmarks
+      }
+    } catch (e) {
+      print('Error loading bookmarks: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error loading bookmarks: $e')),
+        );
+      }
+    }
   }
 } 

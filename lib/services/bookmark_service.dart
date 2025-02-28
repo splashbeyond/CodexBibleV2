@@ -107,7 +107,7 @@ class BookmarkService {
         'lastUpdated': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
       
-      // Delete existing bookmarks
+      // Get all existing bookmarks
       final existingBookmarks = await _firestore
           .collection('users')
           .doc(userId)
@@ -116,6 +116,7 @@ class BookmarkService {
       
       final batch = _firestore.batch();
       
+      // Delete all existing bookmarks
       for (var doc in existingBookmarks.docs) {
         batch.delete(doc.reference);
       }
@@ -178,10 +179,13 @@ class BookmarkService {
         print('Added bookmark');
       }
       
+      // Save changes immediately
       await saveBookmarks();
       print('Successfully saved bookmark changes');
     } catch (e) {
       print('Error toggling bookmark: $e');
+      // Reload bookmarks to ensure consistency
+      await loadBookmarks();
       rethrow;
     }
   }

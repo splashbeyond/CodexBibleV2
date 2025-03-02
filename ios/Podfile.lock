@@ -958,13 +958,6 @@ PODS:
     - Firebase/Firestore (= 10.25.0)
     - firebase_core
     - Flutter
-  - ffmpeg-kit-ios-https (6.0)
-  - ffmpeg_kit_flutter (6.0.3):
-    - ffmpeg_kit_flutter/https (= 6.0.3)
-    - Flutter
-  - ffmpeg_kit_flutter/https (6.0.3):
-    - ffmpeg-kit-ios-https (= 6.0)
-    - Flutter
   - Firebase/Auth (10.25.0):
     - Firebase/CoreOnly
     - FirebaseAuth (~> 10.25.0)
@@ -1135,28 +1128,21 @@ PODS:
   - shared_preferences_foundation (0.0.1):
     - Flutter
     - FlutterMacOS
-  - speech_to_text (0.0.1):
-    - Flutter
-    - Try
-  - Try (2.1.1)
 
 DEPENDENCIES:
   - audioplayers_darwin (from `.symlinks/plugins/audioplayers_darwin/ios`)
   - cloud_firestore (from `.symlinks/plugins/cloud_firestore/ios`)
-  - ffmpeg_kit_flutter (from `.symlinks/plugins/ffmpeg_kit_flutter/ios`)
   - firebase_auth (from `.symlinks/plugins/firebase_auth/ios`)
   - firebase_core (from `.symlinks/plugins/firebase_core/ios`)
   - Flutter (from `Flutter`)
   - image_picker_ios (from `.symlinks/plugins/image_picker_ios/ios`)
   - path_provider_foundation (from `.symlinks/plugins/path_provider_foundation/darwin`)
   - shared_preferences_foundation (from `.symlinks/plugins/shared_preferences_foundation/darwin`)
-  - speech_to_text (from `.symlinks/plugins/speech_to_text/ios`)
 
 SPEC REPOS:
   trunk:
     - abseil
     - BoringSSL-GRPC
-    - ffmpeg-kit-ios-https
     - Firebase
     - FirebaseAppCheckInterop
     - FirebaseAuth
@@ -1174,15 +1160,12 @@ SPEC REPOS:
     - nanopb
     - PromisesObjC
     - RecaptchaInterop
-    - Try
 
 EXTERNAL SOURCES:
   audioplayers_darwin:
     :path: ".symlinks/plugins/audioplayers_darwin/ios"
   cloud_firestore:
     :path: ".symlinks/plugins/cloud_firestore/ios"
-  ffmpeg_kit_flutter:
-    :path: ".symlinks/plugins/ffmpeg_kit_flutter/ios"
   firebase_auth:
     :path: ".symlinks/plugins/firebase_auth/ios"
   firebase_core:
@@ -1195,16 +1178,12 @@ EXTERNAL SOURCES:
     :path: ".symlinks/plugins/path_provider_foundation/darwin"
   shared_preferences_foundation:
     :path: ".symlinks/plugins/shared_preferences_foundation/darwin"
-  speech_to_text:
-    :path: ".symlinks/plugins/speech_to_text/ios"
 
 SPEC CHECKSUMS:
   abseil: d121da9ef7e2ff4cab7666e76c5a3e0915ae08c3
   audioplayers_darwin: ccf9c770ee768abb07e26d90af093f7bab1c12ab
   BoringSSL-GRPC: 1e2348957acdbcad360b80a264a90799984b2ba6
   cloud_firestore: 28753092b326c43b17251b50aa6c5b3247c939e5
-  ffmpeg-kit-ios-https: f9c838aa5400a6c5ba12324c6b798f52197ba354
-  ffmpeg_kit_flutter: 66a088989cd7aa07aa8cde7c93a2e4611753fea5
   Firebase: 0312a2352584f782ea56f66d91606891d4607f06
   firebase_auth: f17bd6bfc0bc3d83c6df9dc3829e5b6fee10b147
   firebase_core: 3b49a055ff54114cae400581c13671fe53936c36
@@ -1228,8 +1207,6 @@ SPEC CHECKSUMS:
   PromisesObjC: f5707f49cb48b9636751c5b2e7d227e43fba9f47
   RecaptchaInterop: 7d1a4a01a6b2cb1610a47ef3f85f0c411434cb21
   shared_preferences_foundation: 9e1978ff2562383bd5676f64ec4e9aa8fa06a6f7
-  speech_to_text: ae2abc312e619ff1c53e675a9fc4d785a15c03bb
-  Try: 5ef669ae832617b3cee58cb2c6f99fb767a4ff96
 
 PODFILE CHECKSUM: 0a7d5b7d0e53420cb0284f7b2f171f93843b94d2
 

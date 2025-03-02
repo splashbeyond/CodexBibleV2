@@ -3,6 +3,12 @@ import 'background_music_service.dart';
 import 'asv_audio_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+class Verse {
+  final String text;
+  
+  Verse({required this.text});
+}
+
 class AudioStateManager extends ChangeNotifier {
   static final AudioStateManager _instance = AudioStateManager._internal();
   factory AudioStateManager() => _instance;
@@ -13,6 +19,10 @@ class AudioStateManager extends ChangeNotifier {
   bool _isBackgroundMusicEnabled = true;
   double _backgroundMusicVolume = 0.5;
 
+  String? _currentBook;
+  int? _currentChapter;
+  bool _isPlaying = false;
+
   AudioStateManager._internal() {
     _initialize();
   }
@@ -20,6 +30,9 @@ class AudioStateManager extends ChangeNotifier {
   bool get isPlaying => _isVoiceOverPlaying;
   bool get isBackgroundMusicEnabled => _isBackgroundMusicEnabled;
   double get backgroundMusicVolume => _backgroundMusicVolume;
+  String? get book => _currentBook;
+  int? get chapter => _currentChapter;
+  double get currentPosition => asvAudioService.currentPosition;
 
   Future<void> _initialize() async {
     await _loadSettings();
@@ -27,6 +40,8 @@ class AudioStateManager extends ChangeNotifier {
     // Set up the ASVAudioService to update playing state when chapter changes
     asvAudioService.setOnChapterChangeCallback((String book, int chapter) {
       _isVoiceOverPlaying = true; // Keep playing state when chapter changes
+      _currentBook = book;
+      _currentChapter = chapter;
       notifyListeners();
     });
   }
@@ -91,17 +106,26 @@ class AudioStateManager extends ChangeNotifier {
 
   Future<void> togglePlayback() async {
     try {
+      print('AudioStateManager: Toggling playback. Current state: ${_isVoiceOverPlaying ? 'playing' : 'paused'}');
       if (_isVoiceOverPlaying) {
+        print('AudioStateManager: Attempting to pause playback');
         await asvAudioService.pause();
         _isVoiceOverPlaying = false;
+        print('AudioStateManager: Successfully paused playback');
       } else {
+        print('AudioStateManager: Attempting to start playback');
         // Start voice-over without affecting background music
         await asvAudioService.play();
         _isVoiceOverPlaying = true;
+        print('AudioStateManager: Successfully started playback');
       }
       notifyListeners();
-    } catch (e) {
-      print('Error toggling voice-over playback: $e');
+    } catch (e, stackTrace) {
+      print('AudioStateManager: Error toggling playback: $e');
+      print('AudioStateManager: Stack trace: $stackTrace');
+      _isVoiceOverPlaying = false;
+      notifyListeners();
+      rethrow;
     }
   }
 
@@ -135,6 +159,20 @@ class AudioStateManager extends ChangeNotifier {
   Future<void> navigateToPassage(String book, int chapter) async {
     asvAudioService.setOnChapterChangeCallback((_, __) {}); // Clear existing callback
     await asvAudioService.setPassage(book, chapter, []); // Set new passage
+    notifyListeners();
+  }
+
+  Future<void> setCurrentPassage(String book, int chapter, List<Verse> verses) async {
+    _currentBook = book;
+    _currentChapter = chapter;
+    final verseTexts = verses.map((v) => v.text).toList();
+    await asvAudioService.setPassage(book, chapter, verseTexts);
+    notifyListeners();
+  }
+
+  Future<void> stop() async {
+    await asvAudioService.stop();
+    _isVoiceOverPlaying = false;
     notifyListeners();
   }
 

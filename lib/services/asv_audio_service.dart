@@ -79,9 +79,9 @@ class ASVAudioService {
         iOS: AudioContextIOS(
           category: AVAudioSessionCategory.playback,
           options: [
-            AVAudioSessionOptions.defaultToSpeaker,
-            AVAudioSessionOptions.mixWithOthers,
-            AVAudioSessionOptions.allowBluetooth
+            AVAudioSessionOptions.mixWithOthers,  // Allow mixing with other audio
+            AVAudioSessionOptions.allowBluetooth,
+            AVAudioSessionOptions.defaultToSpeaker
           ]
         )
       ));
@@ -158,17 +158,35 @@ class ASVAudioService {
     }
   }
 
-  Future<void> setPassage(String book, int chapter, List<String> verses) async {
-    _currentBook = book;
-    _currentChapter = chapter;
-    _currentVerses = verses;
+  Future<void> setPassage(String book, int chapter, List<String> verses, {bool maintainState = false}) async {
+    print('ASVAudioService: Setting passage to $book chapter $chapter (maintainState: $maintainState)');
+    bool wasPlaying = _isPlaying;
+    
+    try {
+      // Store current state before changing passage
+      _currentBook = book;
+      _currentChapter = chapter;
+      _currentVerses = verses;
+
+      // If we should maintain state and audio was playing, or if we're just switching chapters
+      if (wasPlaying && (maintainState || _isPlaying)) {
+        print('ASVAudioService: Audio was playing, continuing playback with new chapter');
+        await _playCurrentChapter();
+        _isPlaying = true;
+      }
+    } catch (e, stackTrace) {
+      print('ASVAudioService: Error in setPassage: $e');
+      print('ASVAudioService: Stack trace: $stackTrace');
+      if (!maintainState) {
+        _isPlaying = false;
+      }
+    }
   }
 
   Future<String?> _findAudioAssetForChapter(String book, int chapter) async {
     try {
       final testament = _getTestament(book);
-      // Keep spaces in testament path
-      final testamentPath = testament; // Remove the .replaceAll(' ', '_')
+      print('ASVAudioService: Testament path: $testament');
       
       // Get the book number based on the actual file naming
       String bookNumber;
@@ -179,13 +197,13 @@ class ASVAudioService {
       } else {
         final number = _bookNumbers[book];
         if (number == null) {
-          print('Book number not found for: $book');
+          print('ASVAudioService: Book number not found for: $book');
           return null;
         }
         bookNumber = number;
       }
 
-      print('Looking for audio file with book number: $bookNumber');
+      print('ASVAudioService: Looking for audio file with book number: $bookNumber');
 
       // Format chapter number with leading zero if needed
       String chapterStr = chapter.toString().padLeft(2, '0');
@@ -200,8 +218,8 @@ class ASVAudioService {
           bookInPath = '3John';
         }
         final fileName = '${bookNumber}_${bookInPath.replaceAll(' ', '')}.mp3';
-        final path = 'CodexASVBible/$testamentPath/$fileName';
-        print('Trying single-chapter book path: $path');
+        final path = 'CodexASVBible/$testament/$fileName';
+        print('ASVAudioService: Trying single-chapter book path: $path');
         return path;
       }
 
@@ -228,10 +246,10 @@ class ASVAudioService {
       } else if (book == 'Proverbs') {
         bookInPath = 'Prov';
       } else if (book == 'Psalms') {
-        // Handle Psalms special case - it uses 'Psalm' instead of 'Psalms'
-        // and needs three-digit chapter numbers
         bookInPath = 'Psalm';
-        chapterStr = chapter.toString().padLeft(3, '0'); // Update chapter string to use 3 digits
+        chapterStr = chapter.toString().padLeft(3, '0');
+      } else if (book == 'Matthew') {
+        bookInPath = 'Matt';  // Add special case for Matthew
       }
       
       // Remove spaces from book name
@@ -239,8 +257,8 @@ class ASVAudioService {
 
       // Regular multi-chapter books
       final fileName = '${bookNumber}_${bookInPath}_$chapterStr.mp3';
-      final path = 'CodexASVBible/$testamentPath/$fileName';
-      print('Trying path: $path');
+      final path = 'CodexASVBible/$testament/$fileName';
+      print('ASVAudioService: Trying path: $path');
 
       try {
         final manifestContent = await rootBundle.loadString('AssetManifest.json');
@@ -249,24 +267,26 @@ class ASVAudioService {
         );
 
         final fullPath = 'assets/$path';
+        print('ASVAudioService: Checking manifest for: $fullPath');
+        
         if (manifest.containsKey(fullPath)) {
-          print('Found audio file at: $fullPath');
+          print('ASVAudioService: Found audio file at: $fullPath');
           return path;
         }
 
-        print('Audio file not found in manifest. Available audio files:');
-        manifest.keys.where((key) => key.endsWith('.mp3')).forEach((key) {
+        print('ASVAudioService: Audio file not found in manifest. Available audio files:');
+        manifest.keys.where((key) => key.endsWith('.mp3') && key.contains(bookNumber)).forEach((key) {
           print('- $key');
         });
 
         return null;
       } catch (e) {
-        print('Error checking manifest: $e');
+        print('ASVAudioService: Error checking manifest: $e');
         return null;
       }
     } catch (e, stackTrace) {
-      print('Error finding audio file: $e');
-      print('Stack trace: $stackTrace');
+      print('ASVAudioService: Error finding audio file: $e');
+      print('ASVAudioService: Stack trace: $stackTrace');
       return null;
     }
   }
@@ -283,13 +303,12 @@ class ASVAudioService {
       }
 
       print('ASVAudioService: Setting up playback for $_currentBook chapter $_currentChapter');
-      _isPlaying = true;
       await _playCurrentChapter();
+      _isPlaying = true;
     } catch (e, stackTrace) {
       print('ASVAudioService: Error in play(): $e');
       print('ASVAudioService: Stack trace: $stackTrace');
       _isPlaying = false;
-      await stop();
       rethrow;
     }
   }
@@ -334,18 +353,22 @@ class ASVAudioService {
   }
 
   Future<void> pause() async {
+    print('ASVAudioService: Pausing playback');
     _isPlaying = false;
     await _audioPlayer.pause();
   }
 
   Future<void> resume() async {
-    _isPlaying = true;
+    print('ASVAudioService: Resuming playback');
     await _audioPlayer.resume();
+    _isPlaying = true;
   }
 
   Future<void> stop() async {
-    _isPlaying = false;
+    print('ASVAudioService: Stopping playback');
     await _audioPlayer.stop();
+    _isPlaying = false;
+    _currentPosition = 0.0;
   }
 
   void setPlaybackSpeed(double speed) {
@@ -361,7 +384,8 @@ class ASVAudioService {
   }
 
   Future<void> dispose() async {
-    await _audioPlayer.dispose();
+    // Don't dispose of the audio player, just stop it
+    await stop();
   }
 
   Future<bool> areAudioFilesExtracted() async {

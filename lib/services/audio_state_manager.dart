@@ -39,9 +39,10 @@ class AudioStateManager extends ChangeNotifier {
     
     // Set up the ASVAudioService to update playing state when chapter changes
     asvAudioService.setOnChapterChangeCallback((String book, int chapter) {
-      _isVoiceOverPlaying = true; // Keep playing state when chapter changes
       _currentBook = book;
       _currentChapter = chapter;
+      // Maintain the playing state during chapter changes
+      _isVoiceOverPlaying = true;
       notifyListeners();
     });
   }
@@ -80,6 +81,7 @@ class AudioStateManager extends ChangeNotifier {
       
       if (_isBackgroundMusicEnabled) {
         if (backgroundMusicService.currentSong != null) {
+          // Only resume if it was previously playing
           await backgroundMusicService.resume();
         }
       } else {
@@ -114,7 +116,6 @@ class AudioStateManager extends ChangeNotifier {
         print('AudioStateManager: Successfully paused playback');
       } else {
         print('AudioStateManager: Attempting to start playback');
-        // Start voice-over without affecting background music
         await asvAudioService.play();
         _isVoiceOverPlaying = true;
         print('AudioStateManager: Successfully started playback');
@@ -132,45 +133,59 @@ class AudioStateManager extends ChangeNotifier {
   Future<void> stopAll() async {
     try {
       await asvAudioService.pause();
-      if (_isBackgroundMusicEnabled) {
-        await backgroundMusicService.pause();
-      }
       _isVoiceOverPlaying = false;
       notifyListeners();
     } catch (e) {
-      print('Error stopping all audio: $e');
+      print('Error stopping audio: $e');
     }
   }
 
   Future<void> resumeAll() async {
     try {
-      if (_isBackgroundMusicEnabled && backgroundMusicService.currentSong != null) {
-        await backgroundMusicService.resume();
-      }
       await asvAudioService.resume();
       _isVoiceOverPlaying = true;
       notifyListeners();
     } catch (e) {
-      print('Error resuming all audio: $e');
+      print('Error resuming audio: $e');
     }
   }
 
   // Add navigation method for bookmarks
   Future<void> navigateToPassage(String book, int chapter) async {
-    asvAudioService.setOnChapterChangeCallback((_, __) {}); // Clear existing callback
-    await asvAudioService.setPassage(book, chapter, []); // Set new passage
+    print('AudioStateManager: Navigating to $book chapter $chapter');
+    bool wasPlaying = _isVoiceOverPlaying;
+    _currentBook = book;
+    _currentChapter = chapter;
+    
+    // If audio was playing, we want to continue playing in the new chapter
+    if (wasPlaying) {
+      print('AudioStateManager: Audio was playing, will resume in new chapter');
+      await asvAudioService.setPassage(book, chapter, [], maintainState: true);
+      _isVoiceOverPlaying = true;
+    } else {
+      await asvAudioService.setPassage(book, chapter, [], maintainState: true);
+      _isVoiceOverPlaying = false;
+    }
     notifyListeners();
   }
 
   Future<void> setCurrentPassage(String book, int chapter, List<Verse> verses) async {
+    print('AudioStateManager: Setting current passage to $book chapter $chapter');
+    bool wasPlaying = _isVoiceOverPlaying;
     _currentBook = book;
     _currentChapter = chapter;
     final verseTexts = verses.map((v) => v.text).toList();
-    await asvAudioService.setPassage(book, chapter, verseTexts);
+    
+    // Pass the current playback state to maintain it during passage changes
+    await asvAudioService.setPassage(book, chapter, verseTexts, maintainState: wasPlaying);
+    
+    // Maintain the playing state if it was playing before
+    _isVoiceOverPlaying = wasPlaying;
     notifyListeners();
   }
 
   Future<void> stop() async {
+    print('AudioStateManager: Stopping playback');
     await asvAudioService.stop();
     _isVoiceOverPlaying = false;
     notifyListeners();
@@ -178,8 +193,7 @@ class AudioStateManager extends ChangeNotifier {
 
   @override
   void dispose() {
-    asvAudioService.dispose();
-    backgroundMusicService.dispose();
+    // Don't dispose of the audio services since they need to persist
     super.dispose();
   }
 } 

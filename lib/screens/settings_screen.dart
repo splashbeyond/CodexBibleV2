@@ -162,8 +162,221 @@ class _SettingsScreenState extends State<SettingsScreen> {
             leading: const Icon(Icons.privacy_tip_outlined),
             title: const Text('Privacy Policy'),
             onTap: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Coming soon!')),
+              showDialog(
+                context: context,
+                builder: (BuildContext context) {
+                  return Dialog(
+                    insetPadding: const EdgeInsets.all(16),
+                    child: Container(
+                      width: double.infinity,
+                      constraints: BoxConstraints(
+                        maxHeight: MediaQuery.of(context).size.height * 0.8,
+                      ),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          AppBar(
+                            title: const Text('Privacy Policy'),
+                            leading: IconButton(
+                              icon: const Icon(Icons.close),
+                              onPressed: () => Navigator.of(context).pop(),
+                            ),
+                          ),
+                          Expanded(
+                            child: SingleChildScrollView(
+                              padding: const EdgeInsets.all(16),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: const [
+                                  Text(
+                                    'Privacy Policy for SpokenWord Bible',
+                                    style: TextStyle(
+                                      fontSize: 20,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                  SizedBox(height: 8),
+                                  Text(
+                                    'Effective Date: March 11, 2025',
+                                    style: TextStyle(
+                                      fontStyle: FontStyle.italic,
+                                    ),
+                                  ),
+                                  SizedBox(height: 16),
+                                  Text(
+                                    'Introduction',
+                                    style: TextStyle(
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                  SizedBox(height: 8),
+                                  Text(
+                                    'Welcome to SpokenWord Bible. This Privacy Policy explains how Ephesian28 LLC ("we," "our," or "us") collects, uses, and shares your information when you use our SpokenWord Bible application ("App"). We respect your privacy and are committed to protecting your personal information.',
+                                  ),
+                                  SizedBox(height: 16),
+                                  Text(
+                                    'Information We Collect',
+                                    style: TextStyle(
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                  SizedBox(height: 8),
+                                  Text(
+                                    'Personal Information',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                  Text(
+                                    '\nEmail Address: When you register for an account, we collect your email address through Firebase Authentication.'
+                                    '\nUser Profile: Information you choose to add to your profile.',
+                                  ),
+                                  SizedBox(height: 12),
+                                  Text(
+                                    'Usage Information',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                  Text(
+                                    '\nApp Usage Data: How you interact with the App, including features used, time spent, and Bible passages accessed.'
+                                    '\nDevice Information: Device type, operating system, unique device identifiers.'
+                                    '\nLog Data: Information automatically recorded when you use the App, including access times and app crashes.',
+                                  ),
+                                  SizedBox(height: 12),
+                                  Text(
+                                    'Audio Preferences',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                  Text(
+                                    '\nListening History: Bible passages you\'ve listened to.'
+                                    '\nAudio Settings: Your preferred background sounds and playback settings.',
+                                  ),
+                                  SizedBox(height: 16),
+                                  Text(
+                                    'How We Use Your Information',
+                                    style: TextStyle(
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                  SizedBox(height: 8),
+                                  Text(
+                                    'We use your information to:'
+                                    '\n\n• Provide and maintain the App functionality'
+                                    '\n• Authenticate your account via Firebase'
+                                    '\n• Remember your preferences and settings'
+                                    '\n• Improve and optimize the App experience'
+                                    '\n• Send important notifications about the App',
+                                  ),
+                                  SizedBox(height: 16),
+                                  Text(
+                                    'Data Storage and Security',
+                                    style: TextStyle(
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                  SizedBox(height: 8),
+                                  Text(
+                                    'Your information is stored and processed using Firebase, a secure platform provided by Google. We implement appropriate security measures to protect your personal information from unauthorized access, alteration, or disclosure.',
+                                  ),
+                                  SizedBox(height: 16),
+                                  Text(
+                                    'Third-Party Services',
+                                    style: TextStyle(
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                  SizedBox(height: 8),
+                                  Text(
+                                    'Firebase',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                  Text(
+                                    'We use Firebase (provided by Google) for authentication, data storage, and analytics. Firebase\'s privacy policy can be found at: https://firebase.google.com/support/privacy',
+                                  ),
+                                  SizedBox(height: 12),
+                                  Text(
+                                    'Bible Text Providers',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                  Text(
+                                    'We use commercially available free Bible texts. We do not share your personal information with these providers.',
+                                  ),
+                                  SizedBox(height: 16),
+                                  Text(
+                                    'Your Rights and Choices',
+                                    style: TextStyle(
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                  SizedBox(height: 8),
+                                  Text(
+                                    'You have the right to:'
+                                    '\n\n• Access, correct, or delete your personal information'
+                                    '\n• Opt out of marketing communications'
+                                    '\n• Change your audio preferences and settings'
+                                    '\n• Delete your account',
+                                  ),
+                                  SizedBox(height: 16),
+                                  Text(
+                                    'Children\'s Privacy',
+                                    style: TextStyle(
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                  SizedBox(height: 8),
+                                  Text(
+                                    'The App is not intended for children under 13 years of age. We do not knowingly collect personal information from children under 13.',
+                                  ),
+                                  SizedBox(height: 16),
+                                  Text(
+                                    'Changes to This Privacy Policy',
+                                    style: TextStyle(
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                  SizedBox(height: 8),
+                                  Text(
+                                    'We may update this Privacy Policy from time to time. We will notify you of any changes by posting the new Privacy Policy on this page and updating the "Effective Date."',
+                                  ),
+                                  SizedBox(height: 16),
+                                  Text(
+                                    'Contact Us',
+                                    style: TextStyle(
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                  SizedBox(height: 8),
+                                  Text(
+                                    'If you have any questions about this Privacy Policy, please contact us at:'
+                                    '\n\nEphesian28 LLC'
+                                    '\nEmail: ephesian28mgmt@yahoo.com'
+                                    '\n\nBy using the SpokenWord Bible App, you agree to the collection and use of information in accordance with this Privacy Policy.',
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                },
               );
             },
           ),

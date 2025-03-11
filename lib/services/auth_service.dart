@@ -8,6 +8,28 @@ class AuthService {
   // Get current user
   User? get currentUser => _auth.currentUser;
 
+  // Helper method to handle auth errors with user-friendly messages
+  String _handleAuthError(dynamic error) {
+    if (error is FirebaseAuthException) {
+      switch (error.code) {
+        case 'invalid-email':
+        case 'user-not-found':
+        case 'wrong-password':
+        case 'invalid-credential':
+          return 'Incorrect username or password';
+        case 'email-already-in-use':
+          return 'An account already exists with this email';
+        case 'weak-password':
+          return 'Password is too weak';
+        case 'requires-recent-login':
+          return 'Please sign out and sign in again before this operation';
+        default:
+          return 'Authentication failed. Please try again.';
+      }
+    }
+    return 'An error occurred. Please try again.';
+  }
+
   // Sign in with email and password
   Future<UserCredential> signInWithEmailAndPassword(String email, String password) async {
     try {
@@ -17,7 +39,7 @@ class AuthService {
       );
     } catch (e) {
       print('Error signing in: $e');
-      rethrow;
+      throw _handleAuthError(e);
     }
   }
 
@@ -39,7 +61,7 @@ class AuthService {
       return userCredential;
     } catch (e) {
       print('Error creating user: $e');
-      rethrow;
+      throw _handleAuthError(e);
     }
   }
 
@@ -49,7 +71,7 @@ class AuthService {
       await _auth.signOut();
     } catch (e) {
       print('Error signing out: $e');
-      rethrow;
+      throw 'Failed to sign out. Please try again.';
     }
   }
 
@@ -59,7 +81,10 @@ class AuthService {
       await _auth.sendPasswordResetEmail(email: email);
     } catch (e) {
       print('Error sending password reset email: $e');
-      rethrow;
+      if (e is FirebaseAuthException && e.code == 'user-not-found') {
+        throw 'If an account exists with this email, a password reset link will be sent.';
+      }
+      throw 'Failed to send password reset email. Please try again.';
     }
   }
 
@@ -67,7 +92,7 @@ class AuthService {
   Future<void> deleteAccount() async {
     try {
       final user = _auth.currentUser;
-      if (user == null) throw Exception('No user signed in');
+      if (user == null) throw 'No user signed in';
 
       // Delete user data from Firestore first
       await _deleteUserData(user.uid);
@@ -76,11 +101,10 @@ class AuthService {
       await user.delete();
     } catch (e) {
       print('Error deleting account: $e');
-      // If the error is about requiring recent login, throw a specific error
       if (e is FirebaseAuthException && e.code == 'requires-recent-login') {
-        throw Exception('Please sign out and sign in again before deleting your account');
+        throw 'Please sign out and sign in again before deleting your account';
       }
-      rethrow;
+      throw 'Failed to delete account. Please try again.';
     }
   }
 
@@ -108,7 +132,7 @@ class AuthService {
       await batch.commit();
     } catch (e) {
       print('Error deleting user data: $e');
-      rethrow;
+      throw 'Failed to delete user data. Please try again.';
     }
   }
 
@@ -116,7 +140,7 @@ class AuthService {
   Future<void> reauthenticateUser(String password) async {
     try {
       final user = _auth.currentUser;
-      if (user == null) throw Exception('No user signed in');
+      if (user == null) throw 'No user signed in';
 
       // Create credentials
       final credential = EmailAuthProvider.credential(
@@ -128,7 +152,7 @@ class AuthService {
       await user.reauthenticateWithCredential(credential);
     } catch (e) {
       print('Error reauthenticating: $e');
-      rethrow;
+      throw 'Authentication failed. Please check your password and try again.';
     }
   }
 } 

@@ -379,11 +379,7 @@ class _BookmarksScreenState extends State<BookmarksScreen> {
                                     : Colors.black87,
                                 ),
                               ),
-                              onTap: () {
-                                final audioStateManager = Provider.of<AudioStateManager>(context, listen: false);
-                                audioStateManager.navigateToPassage(bookmark.book, bookmark.chapter);
-                                Navigator.of(context).pop();
-                              },
+                              onTap: null,
                             ),
                           ),
                         );

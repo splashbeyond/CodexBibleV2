@@ -87,15 +87,17 @@ class _HomeScreenState extends State<HomeScreen> {
       print('Chapter changed callback: $book $chapter');
       if (!mounted) return;
       
+      // Update the UI state first
       setState(() {
         selectedBook = book;
         selectedChapter = chapter;
+        isLoading = true; // Show loading indicator during transition
       });
       
       // Load the new passage
       await _loadPassage();
       
-      // Scroll to top when chapter changes
+      // Scroll to top with a smooth animation
       _scrollController.animateTo(
         0,
         duration: const Duration(milliseconds: 300),
@@ -111,7 +113,7 @@ class _HomeScreenState extends State<HomeScreen> {
           chapter,
           currentVerses!.map((text) => Verse(text: text)).toList(),
         );
-        await _audioStateManager.resumeAll();
+        // Don't call resumeAll() here as play() is already called in _handlePlaybackCompletion
       }
     });
     

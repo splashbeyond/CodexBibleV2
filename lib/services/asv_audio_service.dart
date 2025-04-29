@@ -120,41 +120,54 @@ class ASVAudioService {
 
   Future<void> _handlePlaybackCompletion() async {
     print('ASVAudioService: Handling playback completion');
-    if (_currentBook != null && _currentChapter != null) {
-      // Get the maximum chapters for the current book
-      final maxChapters = BibleData.books[_currentBook] ?? 1;
-      
-      if (_currentChapter! < maxChapters) {
-        // Move to next chapter
-        print('ASVAudioService: Moving to next chapter: ${_currentChapter! + 1}');
-        _currentChapter = _currentChapter! + 1;
-        if (_onChapterChangeCallback != null) {
-          print('ASVAudioService: Notifying chapter change: $_currentBook $_currentChapter');
-          await stop(); // Ensure clean state before callback
-          _onChapterChangeCallback!(_currentBook!, _currentChapter!);
-        }
-      } else {
-        // Find the next book
-        final booksList = BibleData.books.keys.toList();
-        final currentIndex = booksList.indexOf(_currentBook!);
-        if (currentIndex < booksList.length - 1) {
-          final nextBook = booksList[currentIndex + 1];
-          print('ASVAudioService: Moving to next book: $nextBook chapter 1');
-          _currentBook = nextBook;
-          _currentChapter = 1;
+    try {
+      if (_currentBook != null && _currentChapter != null) {
+        // Get the maximum chapters for the current book
+        final maxChapters = BibleData.books[_currentBook] ?? 1;
+        
+        if (_currentChapter! < maxChapters) {
+          // Move to next chapter
+          print('ASVAudioService: Moving to next chapter: ${_currentChapter! + 1}');
+          _currentChapter = _currentChapter! + 1;
           if (_onChapterChangeCallback != null) {
             print('ASVAudioService: Notifying chapter change: $_currentBook $_currentChapter');
             await stop(); // Ensure clean state before callback
-            _onChapterChangeCallback!(_currentBook!, _currentChapter!);
+            await Future.delayed(const Duration(milliseconds: 500)); // Add delay before callback
+            await _onChapterChangeCallback!(_currentBook!, _currentChapter!);
+            // Start playing the new chapter automatically
+            await Future.delayed(const Duration(milliseconds: 500)); // Add delay before playing
+            await play();
           }
         } else {
-          print('ASVAudioService: Reached end of Bible, stopping playback');
-          await stop();
+          // Find the next book
+          final booksList = BibleData.books.keys.toList();
+          final currentIndex = booksList.indexOf(_currentBook!);
+          if (currentIndex < booksList.length - 1) {
+            final nextBook = booksList[currentIndex + 1];
+            print('ASVAudioService: Moving to next book: $nextBook chapter 1');
+            _currentBook = nextBook;
+            _currentChapter = 1;
+            if (_onChapterChangeCallback != null) {
+              print('ASVAudioService: Notifying chapter change: $_currentBook $_currentChapter');
+              await stop(); // Ensure clean state before callback
+              await Future.delayed(const Duration(milliseconds: 500)); // Add delay before callback
+              await _onChapterChangeCallback!(_currentBook!, _currentChapter!);
+              // Start playing the new chapter automatically
+              await Future.delayed(const Duration(milliseconds: 500)); // Add delay before playing
+              await play();
+            }
+          } else {
+            print('ASVAudioService: Reached end of Bible, stopping playback');
+            await stop();
+          }
         }
       }
-    } else {
-      print('ASVAudioService: No current book or chapter set, stopping playback');
-      await stop();
+    } catch (e, stackTrace) {
+      print('ASVAudioService: Error in _handlePlaybackCompletion: $e');
+      print('ASVAudioService: Stack trace: $stackTrace');
+      // Reset state on error
+      _isPlaying = false;
+      _currentPosition = 0.0;
     }
   }
 
@@ -293,23 +306,30 @@ class ASVAudioService {
 
   Future<void> play() async {
     try {
-      print('ASVAudioService: Starting play() method');
-      if (_currentVerses.isEmpty || _currentBook == null || _currentChapter == null) {
-        print('ASVAudioService: Cannot play - missing data');
-        print('ASVAudioService: Book: $_currentBook');
-        print('ASVAudioService: Chapter: $_currentChapter');
-        print('ASVAudioService: Verses count: ${_currentVerses.length}');
-        throw Exception('Cannot play audio - missing book, chapter, or verses data');
+      print('ASVAudioService: Attempting to play audio for $_currentBook chapter $_currentChapter');
+      if (_currentBook == null || _currentChapter == null) {
+        print('ASVAudioService: No current book or chapter set');
+        return;
       }
 
-      print('ASVAudioService: Setting up playback for $_currentBook chapter $_currentChapter');
-      await _playCurrentChapter();
+      final audioAsset = await _findAudioAssetForChapter(_currentBook!, _currentChapter!);
+      if (audioAsset == null) {
+        print('ASVAudioService: No audio file found for $_currentBook chapter $_currentChapter');
+        // Try to advance to next chapter if current one fails
+        await _handlePlaybackCompletion();
+        return;
+      }
+
+      print('ASVAudioService: Loading audio file: $audioAsset');
+      await _audioPlayer.play(AssetSource(audioAsset));
       _isPlaying = true;
+      print('ASVAudioService: Playback started successfully');
     } catch (e, stackTrace) {
       print('ASVAudioService: Error in play(): $e');
       print('ASVAudioService: Stack trace: $stackTrace');
       _isPlaying = false;
-      rethrow;
+      // Try to advance to next chapter if current one fails
+      await _handlePlaybackCompletion();
     }
   }
 

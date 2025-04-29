@@ -4,6 +4,9 @@ platform :ios, '13.0'
 # CocoaPods analytics sends network stats synchronously affecting flutter build latency.
 ENV['COCOAPODS_DISABLE_STATS'] = 'true'
 
+# Optimize dynamic library loading
+ENV['SWIFT_COMPILATION_MODE'] = 'wholemodule'
+
 project 'Runner', {
   'Debug' => :debug,
   'Profile' => :release,
@@ -42,6 +45,15 @@ post_install do |installer|
     flutter_additional_ios_build_settings(target)
     target.build_configurations.each do |config|
       config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '13.0'
+      
+      # Optimize launch time
+      config.build_settings['SWIFT_COMPILATION_MODE'] = 'wholemodule'
+      config.build_settings['ENABLE_BITCODE'] = 'NO'
+      config.build_settings['SWIFT_OPTIMIZATION_LEVEL'] = '-O'
+      
+      # Reduce dynamic library load time
+      config.build_settings['DEAD_CODE_STRIPPING'] = 'YES'
+      config.build_settings['PRESERVE_DEAD_CODE_INITS_AND_TERMS'] = 'NO'
     end
   end
 end

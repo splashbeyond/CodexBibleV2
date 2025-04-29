@@ -10,19 +10,44 @@ import 'package:firebase_core/firebase_core.dart';
 import 'services/auth_service.dart';
 
 void main() async {
-  WidgetsFlutterBinding.ensureInitialized();
-  await Firebase.initializeApp(
-    options: const FirebaseOptions(
-      apiKey: "AIzaSyD86aTHpktpc0SW9B46kK0MgIkq07OK9zg",
-      appId: "1:138554346626:ios:6843311e6e703cae0bf89b",
-      messagingSenderId: "138554346626",
-      projectId: "codexbible-30e57",
-      iosBundleId: "com.Ephesian28.SpokenWord",
-      storageBucket: "codexbible-30e57.firebasestorage.app",
-    ),
-  );
-  await dotenv.load(fileName: ".env");
-  runApp(const MyApp());
+  try {
+    WidgetsFlutterBinding.ensureInitialized();
+    print('Flutter binding initialized');
+
+    await Firebase.initializeApp(
+      options: const FirebaseOptions(
+        apiKey: "AIzaSyD86aTHpktpc0SW9B46kK0MgIkq07OK9zg",
+        appId: "1:138554346626:ios:6843311e6e703cae0bf89b",
+        messagingSenderId: "138554346626",
+        projectId: "codexbible-30e57",
+        iosBundleId: "com.Ephesian28.SpokenWord",
+        storageBucket: "codexbible-30e57.firebasestorage.app",
+      ),
+    );
+    print('Firebase initialized successfully');
+
+    try {
+      await dotenv.load(fileName: ".env");
+      print('.env file loaded successfully');
+    } catch (e) {
+      print('Warning: Failed to load .env file: $e');
+      // Continue anyway as .env might not be critical
+    }
+
+    runApp(const MyApp());
+    print('App started successfully');
+  } catch (e, stackTrace) {
+    print('Error during initialization: $e');
+    print('Stack trace: $stackTrace');
+    // Show a meaningful error screen instead of crashing
+    runApp(MaterialApp(
+      home: Scaffold(
+        body: Center(
+          child: Text('Error initializing app: $e'),
+        ),
+      ),
+    ));
+  }
 }
 
 class MyApp extends StatelessWidget {
@@ -40,6 +65,7 @@ class MyApp extends StatelessWidget {
         builder: (context, themeProvider, _) {
     return MaterialApp(
             title: 'Codex Bible',
+            debugShowCheckedModeBanner: false,
       theme: ThemeData(
               primarySwatch: Colors.blue,
               brightness: Brightness.light,

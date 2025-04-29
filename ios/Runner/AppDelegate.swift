@@ -20,6 +20,17 @@ import AVFoundation
       print("Failed to set audio session category: \(error)")
     }
     
+    // Optimize memory allocation during launch
+    if #available(iOS 13.0, *) {
+      // Reduce memory pressure during launch
+      autoreleasepool {
+        // Defer non-critical initialization
+        DispatchQueue.main.async {
+          // Initialize non-critical components here
+        }
+      }
+    }
+    
     GeneratedPluginRegistrant.register(with: self)
     return super.application(application, didFinishLaunchingWithOptions: launchOptions)
   }

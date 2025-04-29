@@ -22,6 +22,7 @@ class AudioStateManager extends ChangeNotifier {
   String? _currentBook;
   int? _currentChapter;
   bool _isPlaying = false;
+  List<Verse> _currentVerses = [];
 
   AudioStateManager._internal() {
     _initialize();
@@ -108,25 +109,38 @@ class AudioStateManager extends ChangeNotifier {
 
   Future<void> togglePlayback() async {
     try {
-      print('AudioStateManager: Toggling playback. Current state: ${_isVoiceOverPlaying ? 'playing' : 'paused'}');
+      print('AudioStateManager: Toggling playback. Current state: $_isVoiceOverPlaying');
       if (_isVoiceOverPlaying) {
-        print('AudioStateManager: Attempting to pause playback');
-        await asvAudioService.pause();
+        print('AudioStateManager: Stopping playback');
+        await asvAudioService.stop();
         _isVoiceOverPlaying = false;
-        print('AudioStateManager: Successfully paused playback');
       } else {
-        print('AudioStateManager: Attempting to start playback');
+        print('AudioStateManager: Starting playback');
+        if (_currentBook == null || _currentChapter == null) {
+          print('AudioStateManager: No current book or chapter set');
+          return;
+        }
+        
+        // Ensure we're in a clean state before starting playback
+        await asvAudioService.stop();
+        await Future.delayed(const Duration(milliseconds: 100));
+        
+        // Set the current passage and start playing
+        await asvAudioService.setPassage(
+          _currentBook!,
+          _currentChapter!,
+          _currentVerses.map((v) => v.text).toList(),
+          maintainState: false
+        );
         await asvAudioService.play();
         _isVoiceOverPlaying = true;
-        print('AudioStateManager: Successfully started playback');
       }
       notifyListeners();
     } catch (e, stackTrace) {
-      print('AudioStateManager: Error toggling playback: $e');
+      print('AudioStateManager: Error in togglePlayback: $e');
       print('AudioStateManager: Stack trace: $stackTrace');
       _isVoiceOverPlaying = false;
       notifyListeners();
-      rethrow;
     }
   }
 
@@ -150,23 +164,33 @@ class AudioStateManager extends ChangeNotifier {
     }
   }
 
-  // Add navigation method for bookmarks
-  Future<void> navigateToPassage(String book, int chapter) async {
-    print('AudioStateManager: Navigating to $book chapter $chapter');
-    bool wasPlaying = _isVoiceOverPlaying;
-    _currentBook = book;
-    _currentChapter = chapter;
-    
-    // If audio was playing, we want to continue playing in the new chapter
-    if (wasPlaying) {
-      print('AudioStateManager: Audio was playing, will resume in new chapter');
-      await asvAudioService.setPassage(book, chapter, [], maintainState: true);
-      _isVoiceOverPlaying = true;
-    } else {
-      await asvAudioService.setPassage(book, chapter, [], maintainState: true);
+  Future<void> navigateToPassage(String book, int chapter, List<int> verses) async {
+    try {
+      print('AudioStateManager: Navigating to passage: $book $chapter');
+      // Stop current playback if any
+      await asvAudioService.stop();
+      await Future.delayed(const Duration(milliseconds: 100));
+      
+      // Update state
+      _currentBook = book;
+      _currentChapter = chapter;
+      _currentVerses = verses.map((e) => Verse(text: e.toString())).toList();
       _isVoiceOverPlaying = false;
+      
+      // Set the new passage
+      await asvAudioService.setPassage(
+        book,
+        chapter,
+        verses.map((e) => e.toString()).toList(),
+        maintainState: false
+      );
+      notifyListeners();
+    } catch (e, stackTrace) {
+      print('AudioStateManager: Error in navigateToPassage: $e');
+      print('AudioStateManager: Stack trace: $stackTrace');
+      _isVoiceOverPlaying = false;
+      notifyListeners();
     }
-    notifyListeners();
   }
 
   Future<void> setCurrentPassage(String book, int chapter, List<Verse> verses) async {
